@@ -38,7 +38,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#111;}
 .ctrl-area{width:100%;display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#0a0a18;flex-shrink:0;}
 .ctrl-area.p1a{border-top:2px solid rgba(255,110,180,.6);}
 .ctrl-area.p2a{border-bottom:2px solid rgba(77,255,145,.6);}
-.dpad{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+.dpad{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
 .dbtn{display:flex;align-items:center;justify-content:center;border-radius:7px;border:none;cursor:pointer;font-weight:900;-webkit-tap-highlight-color:transparent;}
 .dbtn:active{transform:scale(.84);}
 .dbtn.empty{background:transparent;pointer-events:none;}
@@ -87,7 +87,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#111;}
 .wbtn.ws1 .wd{color:#ff9cd4;}
 .wbtn.ws2{border-color:#4dff91;background:rgba(77,255,145,.15);color:#4dff91;}
 .wbtn.ws2 .wd{color:#9dffc8;}
-.ov-btn-row{display:flex;gap:10px;align-items:center;margin-top:2px;}
+.ov-btn-row{display:flex;gap:10px;align-items:center;margin-top:2px;position:sticky;bottom:0;background:rgba(0,0,0,.96);padding:8px 0 6px;width:100%;justify-content:center;}
 #goBtn{font-family:'Arial Black',sans-serif;padding:9px 26px;font-size:14px;font-weight:900;background:linear-gradient(135deg,#ff6eb4,#4dff91);border:none;border-radius:24px;color:#000;cursor:pointer;letter-spacing:2px;box-shadow:0 4px 16px rgba(255,110,180,.4);}
 #goBtn:active{transform:scale(.95);}
 .help-btn{font-family:'Arial Black',sans-serif;padding:7px 12px;font-size:11px;font-weight:900;border-radius:12px;border:2px solid #4488ff;background:rgba(68,136,255,.08);color:#4488ff;cursor:pointer;}
@@ -437,13 +437,14 @@ function stopBGM(){ bgmPlaying=false; clearTimeout(bgmSchedTimer); }
 // =====================================================
 function layout(){
   const W=window.innerWidth, H=window.innerHeight;
-  const hudH=document.getElementById('hud').offsetHeight||34;
-  const ctrl1H=document.getElementById('ctrl1').offsetHeight||54;
-  const ctrl2H=document.getElementById('ctrl2').offsetHeight||(cpuMode?0:54);
-  const avH=H-hudH-ctrl1H-ctrl2H;
+  const hudH=document.getElementById('hud').offsetHeight||42;
+  const hudBotH=document.getElementById('hud-bot').offsetHeight||42;
+  const ctrl1H=document.getElementById('ctrl1').offsetHeight||70;
+  const ctrl2H=document.getElementById('ctrl2').offsetHeight||0;
+  const avH=H-hudH-hudBotH-ctrl1H-ctrl2H;
   CELL=Math.floor(Math.min(W/COLS,avH/ROWS));
-  BTN_SIZE=Math.max(26,Math.floor(CELL*1.05));
-  FIRE_SIZE=Math.max(40,Math.floor(CELL*1.6));
+  BTN_SIZE=Math.max(40,Math.floor(CELL*1.4));
+  FIRE_SIZE=Math.max(58,Math.floor(CELL*2.0));
   canvas.width=CELL*COLS; canvas.height=CELL*ROWS;
   applyButtonSizes();
 }
@@ -800,6 +801,7 @@ function stageSlope(){
 //  INIT
 // =====================================================
 function initGame(){
+  document.getElementById('ctrl2').style.display=cpuMode?'none':'';
   layout();
   grid=[]; walls=new Set(); stationSet=new Set(); inkStations=[];
   bullets=[]; fxList=[]; mines=[];
@@ -839,7 +841,6 @@ function initGame(){
   gameAI = new GameAI();
 
   // P2 controller
-  document.getElementById('ctrl2').style.display=cpuMode?'none':'';
   document.getElementById('p2lbl').textContent=cpuMode?'CPU':'P2';
   document.getElementById('stageBox').textContent=STAGE_DATA[currentStage].name;
 
