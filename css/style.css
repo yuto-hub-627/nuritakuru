@@ -21,7 +21,6 @@
   --font-graffiti:'Reggae One',sans-serif;
   --font-body:'Zen Kaku Gothic New',sans-serif;
   --font-latin:'Rubik Mono One',sans-serif;
-  --font-logo:'Mochiy Pop One',sans-serif;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -127,23 +126,11 @@ button{font-family:inherit;color:inherit;}
 #scr-title .splat{position:absolute;pointer-events:none;}
 #scr-title .top-left{position:absolute;left:40px;top:36px;font-family:var(--font-latin);font-size:13px;letter-spacing:2px;color:var(--muted);}
 .title-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;padding-bottom:90px;}
-/* タイトルロゴ：白い丸文字＋黒ふち＋ピンクの外ふち＋たれ＋王冠（同じ文字を3枚重ねる） */
-.graffiti{position:relative;transform:rotate(-4deg);--gsize:clamp(96px,11vw,150px);}
-.graffiti h1,.graffiti .g-layer{
-  font-family:var(--font-logo);font-weight:400;font-size:var(--gsize);line-height:1.15;letter-spacing:-2px;white-space:nowrap;
-  paint-order:stroke fill;-webkit-text-stroke-linejoin:round;stroke-linejoin:round;
-}
-.graffiti .g-layer{position:absolute;left:0;top:0;}
-.graffiti .g-pink{color:var(--pink);-webkit-text-stroke:calc(var(--gsize)*.36) var(--pink);}
-.graffiti .g-black{color:var(--bg);-webkit-text-stroke:calc(var(--gsize)*.17) var(--bg);text-shadow:5px 7px 0 var(--bg);}
-.graffiti h1.g-white{
-  position:relative;color:#FFFFFF;-webkit-text-stroke:calc(var(--gsize)*.05) var(--bg);
-}
-.graffiti .crown{position:absolute;left:38%;top:calc(var(--gsize)*-.42);width:calc(var(--gsize)*.62);height:auto;transform:rotate(6deg);}
-.graffiti .drips{position:absolute;left:2%;top:calc(var(--gsize)*.98);width:96%;height:calc(var(--gsize)*.62);}
-.graffiti .spray-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--pink);}
-.graffiti.small{--gsize:58px;transform:rotate(-3deg);}
-.title-words{display:flex;gap:14px;transform:rotate(-3deg);margin-top:70px;}
+/* タイトルロゴ（本人が選んだ画像を切り抜いた透過 PNG） */
+.logo{margin:0;line-height:0;transform:rotate(-3deg);}
+.logo img{display:block;width:min(720px,62vw);height:auto;filter:drop-shadow(0 10px 0 #00000088);}
+.logo.small img{width:300px;}
+.title-words{display:flex;gap:14px;transform:rotate(-3deg);margin-top:4px;}
 .title-words span{font-family:var(--font-latin);font-size:16px;background:var(--paper);color:var(--ink);padding:6px 12px;}
 .title-words span.g{background:var(--green);}
 .title-catch{font-weight:900;font-size:19px;}

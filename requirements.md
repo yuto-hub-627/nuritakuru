@@ -9,8 +9,8 @@ question.md の回答から決まったこと。
 
 ## デザイン
 - ネオブルータリズム × 海外漫画（アメコミ）風
-- 見本3案から **C案「ストリート」** に決定（2026-11-14。最初はA案だったが変更）。黒地にマス目・ステッカー・テープ。フォントは Reggae One／Mochiy Pop One（ロゴ）／Rubik Mono One／Zen Kaku Gothic New
-- タイトルロゴは白い丸文字＋黒ふち＋ピンクの外ふち＋たれ＋王冠（本人が選んだ画像を見本に CSS で再現）
+- 見本3案から **C案「ストリート」** に決定（2026-11-14。最初はA案だったが変更）。黒地にマス目・ステッカー・テープ。フォントは Reggae One／Rubik Mono One／Zen Kaku Gothic New
+- タイトルロゴは本人が用意した画像（main の「ヌリタクル グラフィティロゴ集.png」の左上）を切り抜いた透過 PNG：`assets/logo.png`
 - 見本：https://claude.ai/artifact/WDwHg2PkLAH5KrjqA9iHDK
 
 ## 開始までのフロー
