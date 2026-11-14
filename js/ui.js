@@ -148,8 +148,8 @@ function drawStagePreview(cv,idx){
   const w = walls;
   walls = saved;
   const c = cv.getContext('2d'), s = 6;
-  c.fillStyle='#e8e8e8'; c.fillRect(0,0,cv.width,cv.height);
-  c.fillStyle='#2b2b2b';
+  c.fillStyle='#2A2A2A'; c.fillRect(0,0,cv.width,cv.height);
+  c.fillStyle=BRICK_HI;
   w.forEach(k=>{ const [x,y]=k.split(',').map(Number); c.fillRect(x*s,y*s,s,s); });
   c.fillStyle=C1; c.fillRect((RP1.x-1)*s,(RP1.y-1)*s,s*3,s*3);
   c.fillStyle=C2; c.fillRect((RP2.x-1)*s,(RP2.y-1)*s,s*3,s*3);

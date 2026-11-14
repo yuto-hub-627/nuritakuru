@@ -832,23 +832,27 @@ function doRespawn(player){
 // =====================================================
 //  DRAW
 // =====================================================
-const C1='#ff6eb4',C1D='#cc1166',C1B='#ff2288';
-const C2='#4dff91',C2D='#118844',C2B='#00cc55';
-const C2S='#00ff66'; // P2 ステーション用 ネオングリーン（彩度UP）
+// ストリート風の盤面：アスファルトの地面・レンガの壁・スプレーで塗ったインク
+const C1='#FF3D8B',C1D='#B0125A',C1B='#FF5FA2';
+const C2='#39FF88',C2D='#0E8C45',C2B='#5CFFA0';
+const C2S='#39FF88'; // P2 ステーション用
+const ASPHALT='#2A2A2A', ASPHALT_LINE='rgba(255,255,255,.045)';
+const BRICK='#6E3B30', BRICK_HI='#8A4C3E', MORTAR='#3A2420';
+// マスごとに決まった乱数（毎フレーム同じ値になるので、ちらつかない）
+function cellHash(c,r,k=0){ let h=(c*73856093)^(r*19349663)^(k*83492791); h=(h^(h>>>13))*1274126177; return ((h^(h>>>16))>>>0)/4294967295; }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#777'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#161616'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     const x=c*CELL, y=r*CELL;
-    if(walls.has(ky(c,r))){ drawWall(x,y); }
-    else if(stationSet.has(ky(c,r))){ ctx.fillStyle='#ddd'; ctx.fillRect(x,y,CELL,CELL); }
+    if(walls.has(ky(c,r))){ drawWall(x,y,c,r); }
+    else if(stationSet.has(ky(c,r))){ drawGround(x,y,c,r); }
     else{
       const v=grid[r][c];
-      ctx.fillStyle=v===1?C1:v===2?C2:'#e8e8e8';
-      ctx.fillRect(x,y,CELL,CELL);
-      ctx.strokeStyle='rgba(0,0,0,.05)'; ctx.strokeRect(x+.5,y+.5,CELL-1,CELL-1);
+      if(v===1||v===2) drawInk(x,y,c,r,v===1?C1:C2);
+      else drawGround(x,y,c,r);
     }
   }
 
@@ -857,8 +861,8 @@ function draw(){
     const x=s.x*CELL, y=s.y*CELL;
     const col=s.color===1?C1:C2S;
     const pulse=.65+.35*Math.sin(t*.004+(s.x*3+s.y));
-    ctx.fillStyle='#f0f0f0'; ctx.fillRect(x,y,CELL,CELL);
-    ctx.save(); ctx.globalAlpha=.38*pulse; ctx.fillStyle=col; ctx.fillRect(x,y,CELL,CELL); ctx.restore();
+    ctx.fillStyle='#1B1B1B'; ctx.fillRect(x,y,CELL,CELL);
+    ctx.save(); ctx.globalAlpha=.30*pulse; ctx.fillStyle=col; ctx.fillRect(x,y,CELL,CELL); ctx.restore();
     ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.strokeRect(x+2,y+2,CELL-4,CELL-4); ctx.lineWidth=1;
     const cx=x+CELL/2, cy=y+CELL/2, arm=CELL*.3;
     ctx.fillStyle=col;
@@ -1130,10 +1134,47 @@ function drawSpinnerGauge(player,col){
   }
   ctx.restore();
 }
-function drawWall(x,y){
-  ctx.fillStyle='#333344'; ctx.fillRect(x,y,CELL,CELL);
-  ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(x,y,CELL,2); ctx.fillRect(x,y,2,CELL);
-  ctx.fillStyle='rgba(0,0,0,.22)'; ctx.fillRect(x+CELL-2,y,2,CELL); ctx.fillRect(x,y+CELL-2,CELL,2);
+// アスファルト：マスごとに明るさを少し変え、小石の点を散らす
+function drawGround(x,y,c,r){
+  const n=cellHash(c,r);
+  const g=38+Math.floor(n*8);
+  ctx.fillStyle=`rgb(${g},${g},${g})`; ctx.fillRect(x,y,CELL,CELL);
+  ctx.fillStyle='rgba(255,255,255,.07)';
+  for(let i=0;i<3;i++){
+    const px=cellHash(c,r,i+1)*CELL, py=cellHash(c,r,i+7)*CELL;
+    ctx.fillRect(x+px,y+py,Math.max(1,CELL*.07),Math.max(1,CELL*.07));
+  }
+  ctx.strokeStyle=ASPHALT_LINE; ctx.strokeRect(x+.5,y+.5,CELL-1,CELL-1);
+}
+// インク：スプレーで塗ったように、マスごとに濃さを少し変え、細かい飛沫を足す
+function drawInk(x,y,c,r,col){
+  ctx.fillStyle=col; ctx.fillRect(x,y,CELL,CELL);
+  const n=cellHash(c,r,3);
+  ctx.fillStyle=n<.5?`rgba(0,0,0,${(.5-n)*.22})`:`rgba(255,255,255,${(n-.5)*.18})`;
+  ctx.fillRect(x,y,CELL,CELL);
+  ctx.fillStyle='rgba(255,255,255,.22)';
+  for(let i=0;i<2;i++){
+    const px=cellHash(c,r,i+11)*CELL, py=cellHash(c,r,i+17)*CELL;
+    ctx.beginPath(); ctx.arc(x+px,y+py,Math.max(1,CELL*.06),0,Math.PI*2); ctx.fill();
+  }
+}
+// 壁：レンガ（段ごとに目地をずらす）
+function drawWall(x,y,c=0,r=0){
+  ctx.fillStyle=MORTAR; ctx.fillRect(x,y,CELL,CELL);
+  const rows=2, bh=CELL/rows, m=Math.max(1,Math.round(CELL*.07));
+  for(let i=0;i<rows;i++){
+    const off=((r*rows+i)%2)?CELL/2:0;
+    for(let k=-1;k<2;k++){
+      const bx=x+off+k*CELL, by=y+i*bh;
+      const l=Math.max(bx,x), rr=Math.min(bx+CELL,x+CELL);
+      if(rr-l<=m) continue;
+      const shade=cellHash(c*3+k,r*2+i,5);
+      ctx.fillStyle=shade<.5?BRICK:BRICK_HI;
+      ctx.fillRect(l+(l===bx?m/2:0),by+m/2,rr-l-(l===bx?m/2:0)-(rr===bx+CELL?m/2:0),bh-m);
+    }
+  }
+  ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(x,y,CELL,Math.max(1,CELL*.06));
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.fillRect(x,y+CELL-Math.max(1,CELL*.08),CELL,Math.max(1,CELL*.08));
 }
 function drawGlow(cx,cy,col){
   ctx.save(); ctx.globalAlpha=.15+.05*Math.sin(Date.now()*.005); ctx.fillStyle=col;
@@ -1147,6 +1188,7 @@ function drawGlow(cx,cy,col){
 function drawPlayer(player,body,outline){
   if(player.respawning) return;
   const px=player.x*CELL+CELL/2, py=player.y*CELL+CELL/2, r=CELL*.4;
+  ctx.beginPath(); ctx.arc(px,py,r+CELL*.06,0,Math.PI*2); ctx.fillStyle='#F5F5F0'; ctx.fill();
   ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fillStyle=outline; ctx.fill();
   ctx.beginPath(); ctx.arc(px,py,r*.76,0,Math.PI*2); ctx.fillStyle=body; ctx.fill();
   const d=DIR[player.dir];
