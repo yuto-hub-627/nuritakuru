@@ -31,7 +31,7 @@ question.md の回答から決まったこと。
 
 ## オンライン・公開
 - Cloudflare でまとめる：公開は Cloudflare Pages、部屋ごとの通信は Durable Objects（WebSocket）
-- 自分のサブドメインで公開する（ドメイン名は未定）
+- 本人のドメイン `yutoproduct.com` のサブドメインで公開する（サブドメイン名は公開前に本人に確認する）
 
 ## 進める順番
 1. ~~デザイン案を選ぶ~~（C案に決定）
