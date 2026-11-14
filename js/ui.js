@@ -158,40 +158,64 @@ function drawStagePreview(cv,idx){
 // =====================================================
 //  ブキ選択
 // =====================================================
-function renderWeapons(){
+// ブキの並び（最後は「ランダム」）
+const WEAPON_ITEMS = WEAPONS.map(w=>w.id).concat(['random']);
+UI.wpick = {1:0, 2:0};
+function itemName(id){ return id==='random' ? 'ランダム' : WNAME[id]; }
+function itemIcon(id){ return id==='random' ? '?' : WICON[id]; }
+function itemDesc(id){ return id==='random' ? '12種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
+function stepWeapon(pn,d){
+  const n = WEAPON_ITEMS.length;
+  UI.wpick[pn] = (UI.wpick[pn]+d+n)%n;
+  renderWeapons(pn, d);
+}
+// 横スロット：まん中が選んでいるブキ。左右の矢印・カードのクリック・キーで回す
+function renderWeapons(changed, dir){
   const local = UI.setup.kind==='local';
-  const cols = $('weaponCols'); cols.innerHTML='';
-  const players = [
-    {pn:1, label: local?'P1':'あなた', keys:'W A S D で移動 / Space で攻撃'},
-    {pn:2, label: local?'P2':'CPU',    keys: local?'↑ ← ↓ → で移動 / Enter で攻撃':'CPU のブキ'},
+  const box = $('weaponCols');
+  const rows = [
+    {pn:1, label: local?'P1':'あなた', keys:'<kbd>A</kbd><kbd>D</kbd> でえらぶ'},
+    {pn:2, label: local?'P2':'CPU',    keys:'<kbd>←</kbd><kbd>→</kbd> でえらぶ'},
   ];
-  players.forEach(p=>{
-    const col = document.createElement('div');
-    col.className = `weapon-col c${p.pn}`;
-    col.innerHTML = `<div class="weapon-col-head"><span class="player-badge c${p.pn}">${p.label}</span><span class="keys">${p.keys}</span></div>`;
-    const grid = document.createElement('div'); grid.className='weapon-grid';
-    WEAPONS.forEach(wp=>{
-      const b = document.createElement('button');
-      b.type='button'; b.className='weapon-btn';
-      const cur = p.pn===1?w1:w2;
-      if(cur===wp.id) b.classList.add('sel');
-      b.innerHTML = `<span class="wi">${WICON[wp.id]}</span><span class="wn">${WNAME[wp.id]}</span><span class="wd">${wp.desc}</span>`;
-      b.addEventListener('click',()=>{ if(p.pn===1) w1=wp.id; else w2=wp.id; renderWeapons(); });
-      grid.appendChild(b);
-    });
-    const r = document.createElement('button');
-    r.type='button'; r.className='weapon-btn';
-    r.innerHTML = '<span class="wi">?</span><span class="wn">ランダム</span><span class="wd">12種類からおまかせ</span>';
-    r.addEventListener('click',()=>{
-      const id = WEAPONS[Math.floor(Math.random()*WEAPONS.length)].id;
-      if(p.pn===1) w1=id; else w2=id;
-      renderWeapons();
-    });
-    grid.appendChild(r);
-    col.appendChild(grid);
-    cols.appendChild(col);
+  if(!changed) box.innerHTML='';
+  rows.forEach(p=>{
+    if(changed && changed!==p.pn) return;
+    let row = box.querySelector(`.wslot-row[data-pn="${p.pn}"]`);
+    if(!row){
+      row = document.createElement('div');
+      row.className = `wslot-row c${p.pn}`; row.dataset.pn = p.pn;
+      row.innerHTML = `<div class="wslot-label"><span class="player-badge c${p.pn}">${p.label}</span><span class="keys key-hint">${p.keys}</span></div>
+        <button class="wslot-arrow" type="button" aria-label="前のブキ"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg></button>
+        <div class="wslot-track"></div>
+        <button class="wslot-arrow" type="button" aria-label="次のブキ"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l8 8-8 8"/></svg></button>`;
+      const [prev,next] = row.querySelectorAll('.wslot-arrow');
+      prev.addEventListener('click',()=>stepWeapon(p.pn,-1));
+      next.addEventListener('click',()=>stepWeapon(p.pn,1));
+      box.appendChild(row);
+    }
+    const track = row.querySelector('.wslot-track'); track.innerHTML='';
+    const n = WEAPON_ITEMS.length;
+    for(let off=-2; off<=2; off++){
+      const id = WEAPON_ITEMS[(UI.wpick[p.pn]+off+n)%n];
+      const card = document.createElement('button');
+      card.type='button';
+      card.className = 'wcard' + (off===0?' center':'') + (Math.abs(off)===2?' far':'');
+      if(off===0 && dir) card.classList.add(dir>0?'in-right':'in-left');
+      card.innerHTML = `<span class="wi">${itemIcon(id)}</span><span class="wn">${itemName(id)}</span>${off===0?`<span class="wd">${itemDesc(id)}</span>`:''}`;
+      card.setAttribute('aria-label', itemName(id));
+      if(off!==0) card.addEventListener('click',()=>stepWeapon(p.pn,off));
+      track.appendChild(card);
+    }
   });
-  $('weaponSummary').textContent = `${local?'P1':'あなた'}：${WNAME[w1]} ／ ${local?'P2':'CPU'}：${WNAME[w2]}`;
+  $('weaponSummary').textContent = `${local?'P1':'あなた'}：${itemName(WEAPON_ITEMS[UI.wpick[1]])} ／ ${local?'P2':'CPU'}：${itemName(WEAPON_ITEMS[UI.wpick[2]])}`;
+}
+// スタート時に選択を確定（ランダムはここで決める）
+function applyWeaponPicks(){
+  const pick = pn=>{
+    const id = WEAPON_ITEMS[UI.wpick[pn]];
+    return id==='random' ? WEAPONS[Math.floor(Math.random()*WEAPONS.length)].id : id;
+  };
+  w1 = pick(1); w2 = pick(2);
 }
 
 // =====================================================
@@ -389,6 +413,7 @@ function startGame(){
   closeModal('resultModal'); closeModal('pauseModal');
   if(UI.current!=='scr-game') go('scr-game');
   if(document.activeElement) document.activeElement.blur();
+  applyWeaponPicks();
   if(UI.setup.randomStage) currentStage = Math.floor(Math.random()*STAGE_DATA.length);
   else currentStage = UI.setup.stage;
   const local = UI.setup.kind==='local';
@@ -461,6 +486,13 @@ function bindKeyboard(){
       if(P1KEYS[lk]!==undefined){ e.preventDefault(); K1[P1KEYS[lk]]=1; }
       else if(!cpuMode && P2KEYS[e.key]!==undefined){ e.preventDefault(); K2[P2KEYS[e.key]]=1; }
       return;
+    }
+    if(UI.current==='scr-weapon' && !openModalId()){
+      const k = e.key.toLowerCase();
+      if(k==='a'){ stepWeapon(1,-1); return; }
+      if(k==='d'){ stepWeapon(1,1); return; }
+      if(e.key==='ArrowLeft'){ e.preventDefault(); stepWeapon(2,-1); return; }
+      if(e.key==='ArrowRight'){ e.preventDefault(); stepWeapon(2,1); return; }
     }
     if(UI.current==='scr-title' && !openModalId() && (e.key===' '||e.key==='Enter')){
       e.preventDefault(); initAudio(); go('scr-mode');
