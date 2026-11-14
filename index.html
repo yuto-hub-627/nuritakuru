@@ -6,35 +6,43 @@
 <title>ヌリタクル</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Permanent+Marker&family=Reggae+One&family=Rubik+Mono+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <!-- ===================== タイトル ===================== -->
 <section class="screen" id="scr-title" aria-label="タイトル">
-  <svg class="blob" aria-hidden="true" width="420" height="380" viewBox="0 0 420 380" style="left:-90px;top:-70px;"><path d="M210 20c60 0 70 50 120 40s80 40 60 90-10 70 10 110-60 90-120 70-80 30-140 10-60-80-100-110-40-100 10-130 50-40 90-60 30-20 70-20z" fill="#FF5FA2" stroke="#111" stroke-width="6"/><circle cx="380" cy="300" r="22" fill="#FF5FA2" stroke="#111" stroke-width="6"/></svg>
-  <svg class="blob" aria-hidden="true" width="460" height="400" viewBox="0 0 460 400" style="right:-110px;bottom:-110px;"><path d="M230 30c70-10 90 40 140 50s70 70 40 120 20 90-30 130-90 10-140 30-110-10-150-60-60-80-30-130 20-90 70-110 40-25 100-30z" fill="#3DF07A" stroke="#111" stroke-width="6"/><circle cx="40" cy="80" r="26" fill="#3DF07A" stroke="#111" stroke-width="6"/></svg>
+    <svg class="splat" aria-hidden="true" width="300" height="260" viewBox="0 0 300 260" style="right:60px;top:40px;"><path d="M150 30c50-10 90 30 110 70s0 90-40 110-90 30-130 0-50-80-30-120 40-50 90-60z" fill="#39FF88"/><rect x="200" y="190" width="12" height="60" rx="6" fill="#39FF88"/></svg>
+  <svg class="splat" aria-hidden="true" width="220" height="200" viewBox="0 0 300 260" style="left:50px;bottom:60px;"><path d="M150 30c50-10 90 30 110 70s0 90-40 110-90 30-130 0-50-80-30-120 40-50 90-60z" fill="#FFE14D"/></svg>
+  <div class="top-left">NURITAKURU / 2026</div>
 
   <div class="title-center">
-    <div class="tag title-tag">INK BATTLE ON THE GRID</div>
-    <div class="logo-box"><h1>ヌリ<span class="hl">タ</span>クル</h1></div>
-    <div class="title-catch">歩きまわって、塗りつぶせ。いちばん塗った人の勝ち。</div>
-    <button class="btn btn-big btn-primary" id="btnPlay" type="button">あそぶ</button>
-    <div class="tag" style="background:none;color:var(--ink);padding:0;">PRESS SPACE / ENTER</div>
+    <div class="graffiti">
+      <svg class="crown" aria-hidden="true" viewBox="0 0 100 60"><path d="M8 54 L14 14 L34 34 L50 4 L66 34 L86 14 L92 54 Z" fill="none" stroke="#FF3D8B" stroke-width="6" stroke-linejoin="round"/></svg>
+      <span class="g-layer g-pink" aria-hidden="true">ヌリタクル</span>
+      <span class="g-layer g-black" aria-hidden="true">ヌリタクル</span>
+      <h1 class="g-white">ヌリタクル</h1>
+      <svg class="drips" aria-hidden="true" viewBox="0 0 760 120" preserveAspectRatio="none"><g fill="#FF3D8B"><rect x="40" y="0" width="12" height="62" rx="6"/><circle cx="46" cy="64" r="10"/><rect x="150" y="0" width="9" height="40" rx="4.5"/><circle cx="154.5" cy="42" r="7.5"/><rect x="300" y="0" width="13" height="76" rx="6.5"/><circle cx="306.5" cy="78" r="11"/><rect x="455" y="0" width="9" height="34" rx="4.5"/><circle cx="459.5" cy="36" r="7"/><rect x="590" y="0" width="12" height="56" rx="6"/><circle cx="596" cy="58" r="10"/><rect x="700" y="0" width="8" height="28" rx="4"/><circle cx="704" cy="30" r="6.5"/></g><path d="M200 70 C 330 40, 470 46, 600 64 C 520 62, 400 66, 300 92" fill="none" stroke="#FF3D8B" stroke-width="7" stroke-linecap="round"/></svg>
+      <span class="spray-dot" aria-hidden="true" style="right:-20px;top:-6px;width:12px;height:12px;"></span>
+    </div>
+    <div class="title-words"><span>PAINT</span><span class="g">THE</span><span>GRID</span></div>
   </div>
-  <div class="top-right">
+  <div class="title-start">
+    <button class="btn btn-big" id="btnPlay" type="button">あそぶ</button>
+    <div class="press">PRESS SPACE / ENTER</div>
+  </div>
+  <div class="bottom-right">
     <button class="btn" type="button" data-open="helpModal">あそびかた</button>
     <button class="btn" type="button" data-open="settingsModal">せってい</button>
   </div>
-  <div class="title-version">v2.0 — BROWSER EDITION</div>
 </section>
 
 <!-- ===================== モード選択 ===================== -->
 <section class="screen" id="scr-mode" aria-label="モード選択">
   <div class="screen-inner">
     <div class="header">
-      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
+      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
       <h1>モードをえらぶ</h1>
       <div class="tag">SELECT MODE</div>
     </div>
@@ -42,7 +50,7 @@
     <div class="mode-grid">
       <div class="mode-card solo">
         <div class="num">01 — SOLO</div>
-        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.4"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
         <h2>1人でプレイ</h2>
         <p>CPU と対戦。<br>個人戦・チーム戦をえらべる。</p>
         <div class="actions">
@@ -59,7 +67,7 @@
 
       <div class="mode-card friends">
         <div class="num">02 — FRIENDS</div>
-        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.4"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="3"/><path d="M2 21c0-3.5 3-6 6-6s6 2.5 6 6M14 15.5c1-.4 2-.5 3-.5 3 0 5 2 5 5"/></svg>
+        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="3"/><path d="M2 21c0-3.5 3-6 6-6s6 2.5 6 6M14 15.5c1-.4 2-.5 3-.5 3 0 5 2 5 5"/></svg>
         <h2>友達とプレイ</h2>
         <p>部屋番号で集まる、<br>友達だけの非公開の部屋。</p>
         <div class="actions">
@@ -71,7 +79,7 @@
 
       <div class="mode-card online">
         <div class="num">03 — ONLINE</div>
-        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
+        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
         <h2>オンライン</h2>
         <p>公開中の部屋に入るか、<br>自分で部屋をつくる。</p>
         <div class="actions">
@@ -87,7 +95,7 @@
 <section class="screen" id="scr-rule" aria-label="ルール設定">
   <div class="screen-inner">
     <div class="header">
-      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
+      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
       <h1>ルールをきめる</h1>
       <div class="tag" id="ruleTag">SOLO</div>
     </div>
@@ -117,7 +125,7 @@
 <section class="screen" id="scr-weapon" aria-label="ブキ選択">
   <div class="screen-inner">
     <div class="header">
-      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
+      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
       <h1>ブキをえらぶ</h1>
       <div class="tag">CHOOSE WEAPON</div>
     </div>
@@ -135,7 +143,7 @@
 <section class="screen" id="scr-lobby" aria-label="ロビー">
   <div class="screen-inner">
     <div class="header">
-      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
+      <button class="icon-btn" type="button" data-back aria-label="もどる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
       <h1>公開中の部屋</h1>
       <div class="tag">ONLINE LOBBY</div>
     </div>
@@ -154,7 +162,7 @@
 <section class="screen" id="scr-room" aria-label="待合室">
   <div class="screen-inner">
     <div class="header">
-      <button class="icon-btn" type="button" data-back aria-label="部屋を出る"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
+      <button class="icon-btn" type="button" data-back aria-label="部屋を出る"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"><path d="M15 4l-8 8 8 8"/></svg></button>
       <h1 id="roomTitle">待合室</h1>
       <div class="tag" id="roomTag">PRIVATE ROOM</div>
     </div>
@@ -206,7 +214,7 @@
       <div class="timer" id="timerBox">100</div>
       <div class="center-sub">
         <span class="stage-name" id="stageBox"></span>
-        <button class="pause-btn" type="button" id="pauseBtn" aria-label="一時停止"><svg aria-hidden="true" viewBox="0 0 16 16" fill="#111"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg></button>
+        <button class="pause-btn" type="button" id="pauseBtn" aria-label="一時停止"><svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg></button>
       </div>
     </div>
     <div class="pcard right" id="pcard2">
@@ -227,7 +235,7 @@
 <!-- ===================== スマホ ===================== -->
 <section class="screen" id="scr-mobile" aria-label="PC で遊んでください">
   <div class="mobile-inner">
-    <div class="logo-box"><h1>ヌリ<span class="hl">タ</span>クル</h1></div>
+    <div class="graffiti small"><span class="g-layer g-pink" aria-hidden="true">ヌリタクル</span><span class="g-layer g-black" aria-hidden="true">ヌリタクル</span><h1 class="g-white">ヌリタクル</h1></div>
     <div class="notice">ヌリタクルは<br>PC のブラウザで遊ぶゲームです。<br>キーボードのある PC で<br>開いてください。</div>
   </div>
 </section>
@@ -236,7 +244,7 @@
 <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
   <div class="modal-box">
     <div class="modal-head"><h2 id="helpTitle">あそびかた</h2>
-      <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
     </div>
     <div class="modal-body">
       <h3>RULES / ルール</h3>
@@ -277,7 +285,7 @@
 <div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="modal-box small">
     <div class="modal-head"><h2 id="settingsTitle">せってい</h2>
-      <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="toggle-row"><span class="k">BGM</span>
@@ -293,7 +301,7 @@
 <div class="modal" id="joinModal" role="dialog" aria-modal="true" aria-labelledby="joinTitle">
   <div class="modal-box small">
     <div class="modal-head"><h2 id="joinTitle">部屋番号で入る</h2>
-      <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.5"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button class="icon-btn" type="button" data-close aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
     </div>
     <form class="modal-body" id="joinForm">
       <label for="joinCode" style="font-weight:900;">友達から聞いた6文字の部屋番号</label>
