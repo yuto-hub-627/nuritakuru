@@ -193,31 +193,26 @@ button{font-family:inherit;color:inherit;}
 }
 .wslot-arrow:hover{background:var(--paper);color:var(--ink);}
 .wslot-arrow svg{width:26px;height:26px;}
-.wslot-track{display:flex;align-items:center;justify-content:center;gap:16px;min-width:0;overflow:hidden;padding:14px 0;}
+/* 3D リール：カードを円柱のまわりに並べて回す */
+.wreel{position:relative;height:230px;min-width:0;perspective:1400px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);}
+.wdrum{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d;
+  transition:transform .55s cubic-bezier(.18,.9,.28,1.25);}
 .wcard{
-  flex:0 0 auto;width:150px;height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  position:absolute;left:-110px;top:-90px;width:220px;height:180px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
   background:var(--panel);color:var(--paper);border:3px solid #5A5A55;border-radius:16px;cursor:pointer;
-  font-family:var(--font-graffiti);text-align:center;padding:12px;transition:transform .12s,opacity .12s;
+  font-family:var(--font-graffiti);text-align:center;padding:12px;backface-visibility:hidden;
+  transition:background .2s,border-color .2s,color .2s,transform .35s cubic-bezier(.18,.9,.28,1.25);
 }
 .wcard:hover{border-color:var(--paper);}
-.wcard.far{width:120px;height:120px;opacity:.45;}
-.wcard .wi{font-size:44px;line-height:1;}
-.wcard.far .wi{font-size:34px;}
-.wcard .wn{font-size:17px;line-height:1.2;}
-.wcard.far .wn{font-size:14px;}
-.wcard.center{
-  width:300px;height:200px;color:var(--ink);border:5px solid var(--paper);transform:rotate(-2deg);cursor:default;
-  box-shadow:0 0 0 5px var(--bg),0 0 0 9px var(--paper);
-}
+.wcard .wi{font-size:48px;line-height:1;}
+.wcard .wn{font-size:22px;line-height:1.2;}
+.wcard .wd{font-size:12px;line-height:1.4;color:var(--muted);}
+.wcard.center{color:var(--ink);border:5px solid var(--paper);cursor:default;}
+.wcard.center .wd{color:var(--ink);}
 .wslot-row.c1 .wcard.center{background:var(--p1);}
 .wslot-row.c2 .wcard.center{background:var(--p2);}
-.wcard.center .wi{font-size:60px;}
-.wcard.center .wn{font-size:30px;}
-.wcard.center .wd{font-size:14px;line-height:1.4;}
-.wcard.in-right{animation:slideR .16s ease-out;}
-.wcard.in-left{animation:slideL .16s ease-out;}
-@keyframes slideR{from{transform:translateX(60px) rotate(-2deg);opacity:.4}to{transform:rotate(-2deg);opacity:1}}
-@keyframes slideL{from{transform:translateX(-60px) rotate(-2deg);opacity:.4}to{transform:rotate(-2deg);opacity:1}}
 
 /* ---------- ロビー ---------- */
 .lobby-list{flex-grow:1;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding:4px 10px 10px 4px;min-height:0;}
