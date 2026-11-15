@@ -173,6 +173,8 @@ function stepWeapon(pn,d){
 }
 // 3D のリール：カードを円柱のまわりに並べ、円柱ごと回す
 const REEL_R = 470;
+const WHEEL_STEP = 100;        // ホイールをこれだけ動かしたら1枚回る
+const WHEEL_COOLDOWN_MS = 280; // 1枚回ったあと、次に回れるまでの時間
 function renderWeapons(){
   const local = UI.setup.kind==='local';
   const box = $('weaponCols'); box.innerHTML='';
@@ -204,12 +206,16 @@ function renderWeapons(){
       });
       drum.appendChild(card);
     });
-    // マウスホイールでも回す（回しすぎないよう少し間引く）
-    let wheelLock = 0;
+    // マウスホイールでも回す。動かした量をためて、一定量ごとに1枚だけ回す（回りすぎ防止）
+    let wheelSum = 0, wheelLock = 0;
     row.querySelector('.wreel').addEventListener('wheel',e=>{
       e.preventDefault();
-      const now = performance.now(); if(now - wheelLock < 90) return; wheelLock = now;
-      stepWeapon(p.pn, (e.deltaY||e.deltaX) > 0 ? 1 : -1);
+      const now = performance.now();
+      if(now - wheelLock < WHEEL_COOLDOWN_MS){ wheelSum = 0; return; }
+      wheelSum += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if(Math.abs(wheelSum) < WHEEL_STEP){ return; }
+      stepWeapon(p.pn, wheelSum > 0 ? 1 : -1);
+      wheelSum = 0; wheelLock = now;
     },{passive:false});
     box.appendChild(row);
     updateReel(p.pn, true);
