@@ -165,7 +165,7 @@ UI.wangle = {1:0, 2:0};   // リールの角度（度）。何周しても割り
 UI.wvel   = {1:0, 2:0};   // 回る速さ（度/ミリ秒）。慣性で少しずつ遅くなる
 function itemName(id){ return id==='random' ? 'ランダム' : WNAME[id]; }
 // ブキのイラスト（assets/weapons/<ブキ>-<1:ピンク|2:緑>.png）。まだ無いブキは絵文字のまま
-const WEAPON_ART = ['shooter','charger','bomb','roller','spinner','eel','tornado','tackle','sensui'];
+const WEAPON_ART = ['shooter','charger','bomb','roller','spinner','eel','tornado','mine','curling','tackle','sensui'];
 function weaponArt(id,pn){ return WEAPON_ART.includes(id) ? `assets/weapons/${id}-${pn}.png` : null; }
 function itemIcon(id){ return id==='random' ? '?' : WICON[id]; }
 function itemDesc(id){ return id==='random' ? '11種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
