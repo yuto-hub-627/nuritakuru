@@ -164,6 +164,9 @@ UI.wpick  = {1:0, 2:0};   // 選んでいるブキの番号
 UI.wangle = {1:0, 2:0};   // リールの角度（度）。何周しても割り算しない値
 UI.wvel   = {1:0, 2:0};   // 回る速さ（度/ミリ秒）。慣性で少しずつ遅くなる
 function itemName(id){ return id==='random' ? 'ランダム' : WNAME[id]; }
+// ブキのイラスト（assets/weapons/<ブキ>-<1:ピンク|2:緑>.png）。まだ無いブキは絵文字のまま
+const WEAPON_ART = ['shooter','charger','bomb','roller','spinner','eel','tornado','tackle','sensui'];
+function weaponArt(id,pn){ return WEAPON_ART.includes(id) ? `assets/weapons/${id}-${pn}.png` : null; }
 function itemIcon(id){ return id==='random' ? '?' : WICON[id]; }
 function itemDesc(id){ return id==='random' ? '12種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
 
@@ -264,7 +267,10 @@ function renderWeapons(){
       const card = document.createElement('button');
       card.type='button'; card.className='wcard'; card.dataset.i=i;
       card.style.transform = `rotateY(${i*STEP_DEG}deg) translateZ(${REEL_R}px)`;
-      card.innerHTML = `<span class="wi">${itemIcon(id)}</span><span class="wn">${itemName(id)}</span><span class="wd">${itemDesc(id)}</span>`;
+      const art = weaponArt(id,p.pn);
+      card.innerHTML = art
+        ? `<img class="wart" src="${art}" alt="" draggable="false"><span class="wd">${itemDesc(id)}</span>`
+        : `<span class="wi">${itemIcon(id)}</span><span class="wn">${itemName(id)}</span><span class="wd">${itemDesc(id)}</span>`;
       card.setAttribute('aria-label', itemName(id));
       card.addEventListener('click',()=>{
         if(dragged) return; // ドラッグのあとのクリックは無視
@@ -441,8 +447,10 @@ function updateWeaponUI(){
   const local = UI.setup.kind==='local';
   $('who1').textContent = local ? 'P1' : 'YOU';
   $('who2').textContent = local ? 'P2' : 'CPU';
-  $('wpn1').textContent = `${WICON[w1]} ${WNAME[w1]}`;
-  $('wpn2').textContent = `${WICON[w2]} ${WNAME[w2]}`;
+  [[1,w1],[2,w2]].forEach(([n,w])=>{
+    const art = weaponArt(w,n);
+    $('wpn'+n).innerHTML = art ? `<img class="hud-art" src="${art}" alt="">${WNAME[w]}` : `${WICON[w]} ${WNAME[w]}`;
+  });
 }
 function updateScores(){
   let s1=0, s2=0;
