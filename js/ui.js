@@ -168,7 +168,7 @@ function itemName(id){ return id==='random' ? 'ランダム' : WNAME[id]; }
 const WEAPON_ART = ['shooter','charger','bomb','roller','spinner','eel','tornado','tackle','sensui'];
 function weaponArt(id,pn){ return WEAPON_ART.includes(id) ? `assets/weapons/${id}-${pn}.png` : null; }
 function itemIcon(id){ return id==='random' ? '?' : WICON[id]; }
-function itemDesc(id){ return id==='random' ? '12種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
+function itemDesc(id){ return id==='random' ? '11種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
 
 // 3D のリール：カードを円柱のまわりに並べ、円柱ごと回す
 const REEL_R = 470;

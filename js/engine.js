@@ -14,7 +14,6 @@ const BTICK_MS    = 80;
 const INK_MAX  = 100;
 const INK_COST = { shooter:6, charger:20, bomb:20, roller:5, spinner:0,
                    eel:12, tornado:5,
-                   sniper:22,
                    mine:20, curling:15,
                    tackle:10,
                    sensui:16 };
@@ -28,20 +27,17 @@ const CHARGER_MAX_CHARGE = 1200;
 
 const WCD   = { shooter:300, charger:200, bomb:1100, roller:0, spinner:0,
                 eel:500, tornado:0,
-                sniper:1200,
                 mine:1200, curling:600,
                 tackle:200,
                 sensui:800 };
 const WICON = { shooter:'🔫', charger:'🎯', bomb:'💣', roller:'🖌️', spinner:'🌀',
                 eel:'⚡', tornado:'🌪️',
-                sniper:'🔭',
                 mine:'💥', curling:'🎿',
                 tackle:'🏃',
                 sensui:'🌊' };
 const WNAME = { shooter:'シューター', charger:'チャージャー', bomb:'ボム',
                 roller:'ローラー', spinner:'スピナー',
                 eel:'デンキウナギ', tornado:'タツマキ',
-                sniper:'スナイパー',
                 mine:'マイン', curling:'カーリング',
                 tackle:'タックル',
                 sensui:'センスイ' };
@@ -99,7 +95,6 @@ const WEAPONS=[
   {id:'spinner',   name:'🌀 スピナー',        desc:'長押し→扇形1〜15発'},
   {id:'eel',       name:'⚡ デンキウナギ',    desc:'無限反射する電撃弾'},
   {id:'tornado',   name:'🌪️ タツマキ',        desc:'長押しで周囲を塗る 貫通'},
-  {id:'sniper',    name:'🔭 スナイパー',      desc:'溜め300ms→射程14 貫通'},
   {id:'mine',      name:'💥 マイン',          desc:'5×5爆発 連鎖誘爆あり'},
   {id:'curling',   name:'🎿 カーリング',      desc:'壁まで直進しながら全マス塗る'},
   {id:'tackle',    name:'🏃 タックル',        desc:'前方5マス無敵突進 敵インク無視'},
@@ -298,11 +293,11 @@ function initGame(){
   p1={x:RP1.x,y:RP1.y,dir:'right',color:1,weapon:w1,respawning:false,
       shootCd:0,moveCd:0,ink:INK_MAX,chargeHeld:0,spinnerHeld:0,
       spinnerFireCd:0,spinnerCd:0,spinnerQueue:[],spinnerQueueCd:0,tornadoCd:0,
-      invincible:false,sniperWindMs:0,sensuiHeld:0};
+      invincible:false,sensuiHeld:0};
   p2={x:RP2.x,y:RP2.y,dir:'left', color:2,weapon:w2,respawning:false,
       shootCd:0,moveCd:0,ink:INK_MAX,chargeHeld:0,spinnerHeld:0,
       spinnerFireCd:0,spinnerCd:0,spinnerQueue:[],spinnerQueueCd:0,tornadoCd:0,
-      invincible:false,sniperWindMs:0,sensuiHeld:0};
+      invincible:false,sensuiHeld:0};
 
   // CPU AI reset
   gameAI = new GameAI();
@@ -543,21 +538,6 @@ function doTornadoPaint(player){
       doRespawn(other);
   }
   fxList.push({type:'tornado',x:player.x,y:player.y,color:player.color,range,life:10,max:10});
-}
-// 🔭 SNIPER: 射程14即時ビーム (壁で止まる)
-function doSniper(p){
-  const d=DIR[p.dir]; let cx=p.x, cy=p.y;
-  const other=p===p1?p2:p1; let len=0;
-  for(let i=0;i<14;i++){
-    cx+=d.x; cy+=d.y;
-    if(!ib(cx,cy)||walls.has(ky(cx,cy))) break;
-    len++;
-    paintCell(cx,cy,p.color);
-    if(!other.respawning&&cx===other.x&&cy===other.y&&!safeZone(cx,cy,other.color)){
-      doRespawn(other); // 貫通: breakしない
-    }
-  }
-  fxList.push({type:'beam',x:p.x+d.x,y:p.y+d.y,dx:d.x,dy:d.y,color:p.color,life:12,max:12,len:Math.max(1,len)});
 }
 
 // 💥 MINE: 足元に地雷設置（個数制限なし）
@@ -820,7 +800,7 @@ function doRespawn(player){
   if(player.invincible) return; // タックル無敵中は無効
   playSE('hit');
   player.respawning=true; player.x=-99; player.y=-99;
-  player.sensuiHeld=0; player.sniperWindMs=0;
+  player.sensuiHeld=0;
   setTimeout(()=>{
     const rp=player.color===1?RP1:RP2;
     player.x=rp.x; player.y=rp.y;
@@ -1022,7 +1002,6 @@ function draw(){
     ctx.restore();
   });
 
-  drawSniperAim(p1,C1); drawSniperAim(p2,C2);
   drawSensuiPreview(p1,C1); drawSensuiPreview(p2,C2);
   drawPlayer(p1,C1B,C1D); drawPlayer(p2,C2B,C2D);
   drawChargerAim(p1,C1); drawChargerAim(p2,C2);
@@ -1030,35 +1009,6 @@ function draw(){
   drawSpinnerGauge(p1,C1); drawSpinnerGauge(p2,C2);
 }
 
-function drawSniperAim(player,col){
-  if(player.respawning||(player.sniperWindMs||0)<=0) return;
-  const frac=1-(player.sniperWindMs/300); // 0→1 as wind-up progresses
-  const d=DIR[player.dir]; let cx=player.x, cy=player.y;
-  ctx.save();
-  // 点滅エフェクト（溜まるほど速く点滅）
-  const blink=Math.sin(Date.now()*(0.02+frac*0.06))>0;
-  ctx.globalAlpha=blink?(.5+frac*.5):(.15+frac*.2);
-  ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.setLineDash([4,4]);
-  ctx.beginPath();
-  ctx.moveTo(cx*CELL+CELL/2, cy*CELL+CELL/2);
-  let lineLen=0;
-  for(let i=0;i<14;i++){
-    cx+=d.x; cy+=d.y;
-    if(!ib(cx,cy)||walls.has(ky(cx,cy))) break;
-    ctx.lineTo(cx*CELL+CELL/2, cy*CELL+CELL/2);
-    lineLen++;
-  }
-  ctx.stroke(); ctx.setLineDash([]);
-  // 先端の照準マーク
-  if(lineLen>0){
-    const ex=(player.x+d.x*(lineLen))*CELL+CELL/2;
-    const ey=(player.y+d.y*(lineLen))*CELL+CELL/2;
-    ctx.globalAlpha=blink?0.9:0.4;
-    ctx.beginPath(); ctx.arc(ex,ey,CELL*.35,0,Math.PI*2);
-    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
-  }
-  ctx.restore();
-}
 function drawSensuiPreview(player,col){
   if(player.respawning||player.weapon!=='sensui') return;
   const held=player.sensuiHeld||0;
@@ -1250,16 +1200,6 @@ function proc(player,keys,dt){
   player.moveCd=Math.max(0,player.moveCd-dt);
   player.shootCd=Math.max(0,player.shootCd-dt);
 
-  // スナイパー溜め中は移動不可
-  const sniperWinding=(player.weapon==='sniper'&&(player.sniperWindMs||0)>0);
-  if(sniperWinding){
-    player.sniperWindMs=Math.max(0,(player.sniperWindMs||0)-dt);
-    if(player.sniperWindMs<=0&&player.shootCd<=0&&!player.respawning){
-      // 溜め完了 → 発射
-      playSE('shoot'); doSniper(player); player.shootCd=WCD.sniper;
-    }
-    return; // 移動・その他アクション全てキャンセル
-  }
 
   let moved=false;
   if(player.moveCd<=0){
@@ -1308,17 +1248,6 @@ function proc(player,keys,dt){
           fxList.push({type:'nink',x:player.x,y:player.y,life:14,max:14});
         }
         player.sensuiHeld=0;
-      }
-    }
-  } else if(player.weapon==='sniper'){
-    player.chargeHeld=0; player.spinnerHeld=0;
-    // ボタンを押したら300ms溜め開始（インク確認・即消費）
-    if(keys.shoot&&player.shootCd<=0&&!player.respawning&&!(player.sniperWindMs>0)){
-      if(player.ink>=INK_COST.sniper){
-        player.ink=Math.max(0,player.ink-INK_COST.sniper);
-        player.sniperWindMs=300;
-      } else {
-        fxList.push({type:'nink',x:player.x,y:player.y,life:14,max:14});
       }
     }
   } else {

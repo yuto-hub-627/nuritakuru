@@ -104,7 +104,7 @@ class GameAI {
 
     // ─ 4. 移動 ─
     cpu.moveCd=Math.max(0,cpu.moveCd-dt);
-    if(cpu.moveCd<=0&&!(cpu.sniperWindMs>0)){
+    if(cpu.moveCd<=0){
       cpu.moveCd=MOVE_CD;
 
       // ★ スタック1秒超 → リフィルステーションへ強制移動してリセット
@@ -220,21 +220,21 @@ class GameAI {
       return;
     }
 
-    // ★ チャージャー/スナイパー: 壁際の角で陣取り、LoSが通る場所を探す
-    if(cpu.weapon==='charger'||cpu.weapon==='sniper'){
+    // ★ チャージャー: 壁際の角で陣取り、LoSが通る場所を探す
+    if(cpu.weapon==='charger'){
       const humanSafe2=human.respawning||safeZone(human.x,human.y,1);
       if(!humanSafe2&&inkPct>=0.25){
         const los=this.hasLineOfSight(cpu.x,cpu.y,human.x,human.y);
         if(los){
           // 射線あり: 距離を保ちながら狙う
           this.state='attack';
-          this.target=this._getSniperHoldTarget(cpu,human);
+          this.target=this._getChargerHoldTarget(cpu,human);
           this.blockedMs=0; this.inkClearDir=null;
           this.targetLockMs=1200;
           return;
         }
         // 射線なし: LoSが通る壁際の角を探す
-        const wp=this._findSniperPerch(cpu,human);
+        const wp=this._findChargerPerch(cpu,human);
         if(wp){
           this.state='attack';
           this.target=wp;
@@ -440,7 +440,7 @@ class GameAI {
   _shouldEnterCombat(weapon,dist,inkPct){
     if(inkPct<0.15) return false;
     const range={roller:16,tackle:4,sensui:8,
-      sniper:14,charger:14,eel:8,
+      charger:14,eel:8,
       bomb:5,tornado:4,
       shooter:5,curling:7,mine:3,spinner:5};
     return dist<=(range[weapon]||5);
@@ -559,7 +559,7 @@ class GameAI {
       return {x:RP2.x,y:RP2.y};
     }
     // 遠距離系: 適正距離(5-8マス)を保つ
-    if(w==='sniper'||w==='charger'){
+    if(w==='charger'){
       const dist=Math.abs(human.x-cpu.x)+Math.abs(human.y-cpu.y);
       if(dist<5){
         const dx=Math.sign(cpu.x-human.x)||1, dy=Math.sign(cpu.y-human.y)||0;
@@ -810,7 +810,6 @@ class GameAI {
     const inkOk=(INK_COST[w]||0)===0||cpu.ink>=(INK_COST[w]||0);
     if(!inkOk) return null;
     const lineRange=
-      w==='sniper'?14:
       w==='charger'?14:
       w==='eel'||w==='curling'?10:
       w==='sensui'?8:
@@ -841,7 +840,6 @@ class GameAI {
     const inkOk=(INK_COST[w]||0)===0||cpu.ink>=(INK_COST[w]||0);
     if(!inkOk) return null;
     const shootRange=
-      w==='sniper'?14:
       w==='charger'?14:
       w==='eel'||w==='curling'?10:
       w==='sensui'?8:
@@ -938,22 +936,6 @@ class GameAI {
       if(wantFire){doTornadoPaint(cpu);cpu.tornadoCd=300;}
       return;
     }
-    // sniper: 300ms溜めてから発射（溜め中は移動もキャンセル）
-    if(w==='sniper'){
-      if((cpu.sniperWindMs||0)>0){
-        cpu.sniperWindMs=Math.max(0,(cpu.sniperWindMs||0)-dt);
-        if(cpu.sniperWindMs<=0&&cpu.shootCd<=0){
-          playSE('shoot'); doSniper(cpu); cpu.shootCd=WCD.sniper;
-        }
-        return;
-      }
-      if((canCombat||canPaint)&&cpu.shootCd<=0){
-        const dir=combatDir||paintDir;
-        if(dir) cpu.dir=this.faceDir=dir;
-        cpu.sniperWindMs=300;
-      }
-      return;
-    }
     if(w==='sensui'){
       if(cpu.shootCd>0){ cpu.sensuiHeld=0; return; }
       const wantFire=(canCombat||canPaint)&&inkOk;
@@ -984,8 +966,8 @@ class GameAI {
     if(canCombat||canPaint){fire(cpu);cpu.shootCd=WCD[w]||300;}
   }
 
-  // ── チャージャー/スナイパー: 現在地で射線が通るなら距離を保つ座標を返す ──
-  _getSniperHoldTarget(cpu,human){
+  // ── チャージャー: 現在地で射線が通るなら距離を保つ座標を返す ──
+  _getChargerHoldTarget(cpu,human){
     const dist=Math.abs(human.x-cpu.x)+Math.abs(human.y-cpu.y);
     const ideal=9; // 理想距離
     if(dist>=ideal-1) return {x:cpu.x,y:cpu.y}; // 現在地で待機
@@ -996,8 +978,8 @@ class GameAI {
     return {x:cpu.x,y:cpu.y};
   }
 
-  // ── チャージャー/スナイパー: P1に射線が通る壁際の角を探す ──
-  _findSniperPerch(cpu,human){
+  // ── チャージャー: P1に射線が通る壁際の角を探す ──
+  _findChargerPerch(cpu,human){
     let best=null, bestScore=-9999;
     for(let y=1;y<ROWS-1;y++) for(let x=1;x<COLS-1;x++){
       if(!this._walkable(x,y)) continue;
