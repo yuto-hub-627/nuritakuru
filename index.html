@@ -50,10 +50,9 @@
           <div class="cpu-picker" role="group" aria-label="CPU の数">
             <span class="lbl">CPU の数</span>
             <button class="chip sel" type="button" data-cpu="1">1</button>
-            <button class="chip" type="button" data-cpu="2" disabled title="4人対戦の更新で対応します">2</button>
-            <button class="chip" type="button" data-cpu="3" disabled title="4人対戦の更新で対応します">3</button>
+            <button class="chip" type="button" data-cpu="2">2</button>
+            <button class="chip" type="button" data-cpu="3">3</button>
           </div>
-          <div class="key-hint" style="color:var(--ink);">CPU 2〜3体は次の更新で対応<span class="soon">準備中</span></div>
           <button class="btn btn-dark" type="button" id="btnSolo">この設定ではじめる</button>
         </div>
       </div>
@@ -97,8 +96,8 @@
         <div class="section-label">MATCH <span class="jp">対戦形式</span></div>
         <div class="chip-row">
           <button class="chip sel" type="button" data-rule="ffa">個人戦</button>
-          <button class="chip" type="button" data-rule="team" disabled title="4人対戦の更新で対応します">チーム戦（2対2）</button>
-          <span class="key-hint" style="align-self:center;">チーム戦は4人対戦の更新で対応<span class="soon">準備中</span></span>
+          <button class="chip" type="button" data-rule="team">チーム戦</button>
+          <span class="key-hint" style="align-self:center;" id="ruleNote"></span>
         </div>
       </div>
       <div>
@@ -197,12 +196,7 @@
 <!-- ===================== 試合 ===================== -->
 <section class="screen" id="scr-game" aria-label="試合">
   <div class="hud">
-    <div class="pcard" id="pcard1">
-      <span class="sw" style="background:var(--p1);"></span>
-      <div class="info"><span class="who" id="who1">P1</span><span class="wpn" id="wpn1"></span></div>
-      <span class="score" id="score1">0%</span>
-      <div class="ink"><span class="ilbl">INK</span><div class="ink-bar"><div class="ink-fill c1" id="ink1"></div></div></div>
-    </div>
+    <div class="hud-side" id="hudLeft"></div>
     <div class="center-box">
       <div class="timer" id="timerBox">100</div>
       <div class="center-sub">
@@ -210,12 +204,7 @@
         <button class="pause-btn" type="button" id="pauseBtn" aria-label="一時停止"><svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg></button>
       </div>
     </div>
-    <div class="pcard right" id="pcard2">
-      <span class="sw" style="background:var(--p2);"></span>
-      <div class="info"><span class="who" id="who2">P2</span><span class="wpn" id="wpn2"></span></div>
-      <span class="score" id="score2">0%</span>
-      <div class="ink"><span class="ilbl">INK</span><div class="ink-bar"><div class="ink-fill c2" id="ink2"></div></div></div>
-    </div>
+    <div class="hud-side right" id="hudRight"></div>
   </div>
   <div class="board-wrap" id="boardWrap"><canvas id="gameCanvas"></canvas></div>
   <div class="game-foot">

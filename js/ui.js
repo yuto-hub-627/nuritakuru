@@ -109,17 +109,26 @@ function bindModeScreen(){
 // =====================================================
 //  ルール設定
 // =====================================================
+// チーム戦ができるか：1人プレイで CPU 2体以上のとき（2体＝1対2、3体＝2対2）
+function teamAllowed(){ return UI.setup.kind==='solo' && UI.setup.cpu>=2; }
 function renderRule(){
   const s = UI.setup;
+  if(!teamAllowed()) s.rule='ffa';
   $('ruleTag').textContent = s.kind==='local' ? 'LOCAL 2P' : `SOLO ・ CPU ${s.cpu}`;
+  const teamBtn = document.querySelector('[data-rule="team"]');
+  teamBtn.disabled = !teamAllowed();
+  teamBtn.textContent = s.kind==='solo'&&s.cpu===2 ? 'チーム戦（1対2）' : 'チーム戦（2対2）';
+  $('ruleNote').textContent = s.kind==='local' ? 'このPCで2人のときは個人戦だけです'
+    : s.cpu===1 ? 'チーム戦は CPU 2体以上で遊べます'
+    : s.cpu===2 ? 'チーム戦は「あなた vs CPU 2体」になります' : 'チーム戦は「あなた＋CPU vs CPU 2体」になります';
   document.querySelectorAll('[data-rule]').forEach(b=>b.classList.toggle('sel', b.dataset.rule===s.rule));
   document.querySelectorAll('.stage-btn').forEach(b=>{
     const v = b.dataset.stage;
     b.classList.toggle('sel', s.randomStage ? v==='random' : v===String(s.stage));
   });
   const stageName = s.randomStage ? 'ランダム' : STAGE_DATA[s.stage].name;
-  const who = s.kind==='local' ? 'P1 vs P2（このPCで2人）' : `あなた vs CPU ${s.cpu}体`;
-  $('ruleSummary').textContent = `${who} ／ 個人戦 ／ ステージ：${stageName}`;
+  const who = s.kind==='local' ? 'P1 vs P2（このPCで2人）' : `あなた＋CPU ${s.cpu}体`;
+  $('ruleSummary').textContent = `${who} ／ ${s.rule==='team'?'チーム戦':'個人戦'} ／ ステージ：${stageName}`;
 }
 function buildStageGrid(){
   const grid = $('stageGrid'); grid.innerHTML='';
@@ -151,8 +160,8 @@ function drawStagePreview(cv,idx){
   c.fillStyle='#2A2A2A'; c.fillRect(0,0,cv.width,cv.height);
   c.fillStyle=BRICK_HI;
   w.forEach(k=>{ const [x,y]=k.split(',').map(Number); c.fillRect(x*s,y*s,s,s); });
-  c.fillStyle=C1; c.fillRect((RP1.x-1)*s,(RP1.y-1)*s,s*3,s*3);
-  c.fillStyle=C2; c.fillRect((RP2.x-1)*s,(RP2.y-1)*s,s*3,s*3);
+  // スタート地点（四隅）
+  SPAWNS.forEach((sp,i)=>{ c.fillStyle=INKC[i+1]; c.fillRect((sp.x-1)*s,(sp.y-1)*s,s*3,s*3); });
 }
 
 // =====================================================
@@ -167,6 +176,15 @@ function itemName(id){ return id==='random' ? 'ランダム' : WNAME[id]; }
 // ブキのイラスト（assets/weapons/<ブキ>-<1:ピンク|2:緑>.png）。まだ無いブキは絵文字のまま
 const WEAPON_ART = ['shooter','charger','bomb','roller','spinner','eel','tornado','mine','curling','tackle','sensui'];
 function weaponArt(id,pn){ return WEAPON_ART.includes(id) ? `assets/weapons/${id}-${pn}.png` : null; }
+// 色番号ごとのイラスト。黄色・青はイラストが無いので、ピンク・緑の絵の色相をずらして使う
+const ART_BASE = [null,1,2,1,2];
+const ART_FILTER = [null,'','','hue-rotate(85deg) saturate(1.2)','hue-rotate(70deg)'];
+function artTag(id,color,cls){
+  const src = weaponArt(id, ART_BASE[color]);
+  if(!src) return `<span class="${cls}-emoji">${WICON[id]}</span>`;
+  const f = ART_FILTER[color];
+  return `<img class="${cls}" src="${src}" alt=""${f?` style="filter:${f}"`:''}>`;
+}
 function itemIcon(id){ return id==='random' ? '?' : WICON[id]; }
 function itemDesc(id){ return id==='random' ? '11種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
 
@@ -249,7 +267,7 @@ function renderWeapons(){
   const box = $('weaponCols'); box.innerHTML='';
   [
     {pn:1, label: local?'P1':'あなた', keys:'<kbd>A</kbd><kbd>D</kbd> かスライド'},
-    {pn:2, label: local?'P2':'CPU',    keys:'<kbd>←</kbd><kbd>→</kbd> かスライド'},
+    {pn:2, label: local?'P2':(UI.setup.cpu>1?`CPU ×${UI.setup.cpu}`:'CPU'),    keys:'<kbd>←</kbd><kbd>→</kbd> かスライド'},
   ].forEach(p=>{
     const row = document.createElement('div');
     row.className = `wslot-row c${p.pn}`; row.dataset.pn = p.pn;
@@ -327,6 +345,34 @@ function applyWeaponPicks(){
     return id==='random' ? WEAPONS[Math.floor(Math.random()*WEAPONS.length)].id : id;
   };
   w1 = pick(1); w2 = pick(2);
+  // 試合に出る人を決める（スタート地点：0=左下 1=右上 2=左上 3=右下）
+  const s = UI.setup;
+  if(s.kind==='local'){
+    matchSlots = [
+      {slot:0,color:1,weapon:w1,human:true,keys:K1,name:'P1'},
+      {slot:1,color:2,weapon:w2,human:true,keys:K2,name:'P2'},
+    ];
+    return;
+  }
+  const cpuWeapon = ()=> WEAPON_ITEMS[UI.wpick[2]]==='random' ? pick(2) : w2; // ランダムなら CPU ごとに選び直す
+  const name = i => s.cpu===1 ? 'CPU' : `CPU${i}`;
+  if(s.rule==='team' && s.cpu===3){
+    matchSlots = [
+      {slot:0,color:1,weapon:w1,human:true,keys:K1,name:'あなた'},
+      {slot:2,color:1,weapon:cpuWeapon(),name:name(1)},
+      {slot:1,color:2,weapon:cpuWeapon(),name:name(2)},
+      {slot:3,color:2,weapon:cpuWeapon(),name:name(3)},
+    ];
+  } else if(s.rule==='team' && s.cpu===2){
+    matchSlots = [
+      {slot:0,color:1,weapon:w1,human:true,keys:K1,name:'あなた'},
+      {slot:1,color:2,weapon:cpuWeapon(),name:name(1)},
+      {slot:3,color:2,weapon:cpuWeapon(),name:name(2)},
+    ];
+  } else {
+    matchSlots = [{slot:0,color:1,weapon:w1,human:true,keys:K1,name:'あなた'}];
+    for(let i=1;i<=s.cpu;i++) matchSlots.push({slot:i,color:i+1,weapon:i===1?w2:cpuWeapon(),name:name(i)});
+  }
 }
 
 // =====================================================
@@ -443,36 +489,51 @@ function layout(){
   CELL = Math.max(8, Math.floor(Math.min(W/COLS, H/ROWS)));
   canvas.width = CELL*COLS; canvas.height = CELL*ROWS;
 }
+// 「陣営」＝同じ色の人たち（個人戦は1人ずつ、チーム戦は2チーム）
+function sides(){
+  const map = new Map();
+  players.forEach(p=>{ if(!map.has(p.color)) map.set(p.color,[]); map.get(p.color).push(p); });
+  return [...map.entries()].map(([color,members])=>({color,members}));
+}
+function sideName(sd){
+  if(sd.members.length===1) return sd.members[0].name;
+  return sd.members.some(p=>p.human) ? 'あなたのチーム' : '相手チーム';
+}
+// HUD を作り直す（試合の始めに呼ばれる）
 function updateWeaponUI(){
-  const local = UI.setup.kind==='local';
-  $('who1').textContent = local ? 'P1' : 'YOU';
-  $('who2').textContent = local ? 'P2' : 'CPU';
-  [[1,w1],[2,w2]].forEach(([n,w])=>{
-    const art = weaponArt(w,n);
-    $('wpn'+n).innerHTML = art ? `<img class="hud-art" src="${art}" alt="">${WNAME[w]}` : `${WICON[w]} ${WNAME[w]}`;
+  const list = sides();
+  const half = Math.ceil(list.length/2);
+  [['hudLeft',list.slice(0,half)],['hudRight',list.slice(half)]].forEach(([id,arr])=>{
+    $(id).innerHTML = arr.map(sd=>`
+      <div class="pcard" data-color="${sd.color}">
+        <div class="pc-top"><span class="sw" style="background:${INKC[sd.color]}"></span><span class="who">${sideName(sd)}</span><span class="score" data-score="${sd.color}">0%</span></div>
+        ${sd.members.map(p=>`<div class="pc-member" data-slot="${p.slot}">${artTag(p.weapon,p.color,'hud-art')}<span class="mname">${sd.members.length>1?p.name:WNAME[p.weapon]}</span><div class="ink-bar"><div class="ink-fill" style="background:${INKC[p.color]}"></div></div></div>`).join('')}
+      </div>`).join('');
   });
 }
-function updateScores(){
-  let s1=0, s2=0;
+// 色ごとの塗りマス数
+function countByColor(){
+  const n=[0,0,0,0,0];
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     if(walls.has(ky(c,r))||stationSet.has(ky(c,r))) continue;
-    if(grid[r][c]===1) s1++; else if(grid[r][c]===2) s2++;
+    const v=grid[r][c]; if(v>0) n[v]++;
   }
-  const total = totalPaintable||1;
-  const pct1 = (s1/total*100).toFixed(1);
-  const pct2 = (s2/total*100).toFixed(1);
-  $('score1').textContent = pct1+'%';
-  $('score2').textContent = pct2+'%';
-  return {s1,s2,pct1,pct2};
+  return n;
+}
+function updateScores(){
+  const n = countByColor(), total = totalPaintable||1;
+  document.querySelectorAll('[data-score]').forEach(el=>{ el.textContent = (n[+el.dataset.score]/total*100).toFixed(1)+'%'; });
+  return n;
 }
 function updateInkUI(){
-  [[p1,1],[p2,2]].forEach(([p,n])=>{
-    if(!p) return;
-    const fill = $('ink'+n);
+  players.forEach(p=>{
+    const row = document.querySelector(`.pc-member[data-slot="${p.slot}"]`); if(!row) return;
+    const fill = row.querySelector('.ink-fill');
     fill.style.width = (p.ink/INK_MAX*100).toFixed(1)+'%';
     fill.classList.toggle('full', p.weapon==='tornado' && p.ink>=INK_MAX);
     const charging = (p.chargeHeld||0)>0 || (p.spinnerHeld||0)>0 || (p.sensuiHeld||0)>0;
-    $('pcard'+n).classList.toggle('charging', charging);
+    row.classList.toggle('charging', charging);
+    row.classList.toggle('down', p.respawning);
   });
 }
 
@@ -558,27 +619,30 @@ function quitMatch(){
 
 function endGame(){
   stopMatch();
-  const {s1,s2,pct1,pct2} = updateScores(); draw();
+  const n = updateScores(); draw();
   playSE('end');
-  const local = UI.setup.kind==='local';
-  const n1 = local?'P1':'あなた', n2 = local?'P2':'CPU';
-  const title = $('resultTitle');
-  if(s1>s2)      title.innerHTML = `<span class="who" style="background:var(--p1)"></span> の勝ち！`;
-  else if(s2>s1) title.innerHTML = `<span class="who" style="background:var(--p2)"></span> の勝ち！`;
-  else           title.textContent = '引き分け！';
-  const who = title.querySelector('.who'); if(who) who.textContent = s1>s2?n1:n2;
-
   const total = totalPaintable||1;
-  // バーは2人の塗った量の合計を100%として分ける（塗られていない所は出さない）
-  const sum = (s1+s2)||1;
-  const r1 = s1+s2 ? s1/sum*100 : 50;
-  $('resultBar').innerHTML =
-    `<div style="width:${r1}%;background:var(--p1);"></div>`+
-    `<div style="flex-grow:1;background:var(--p2);border-left:3px solid #111;"></div>`;
-  $('resultScores').innerHTML = [
-    {n:n1,c:'var(--p1)',p:pct1,w:w1,win:s1>s2},
-    {n:n2,c:'var(--p2)',p:pct2,w:w2,win:s2>s1},
-  ].map(x=>`<div class="rs${x.win?' win':''}"><div class="rh"><span class="sw" style="background:${x.c}"></span>${x.n}</div><div class="rv">${x.p}%</div><div class="rw">${WICON[x.w]} ${WNAME[x.w]}</div></div>`).join('');
+  const list = sides().map(sd=>({...sd, cells:n[sd.color]})).sort((a,b)=>b.cells-a.cells);
+  const top = list[0], tie = list.length>1 && list[1].cells===top.cells;
+  const title = $('resultTitle');
+  if(tie) title.textContent = '引き分け！';
+  else {
+    title.innerHTML = `<span class="who" style="background:${INKC[top.color]}"></span> の勝ち！`;
+    title.querySelector('.who').textContent = sideName(top);
+  }
+  // バーは全員の塗った量の合計を100%として分ける（塗られていない所は出さない）
+  const sum = list.reduce((a,b)=>a+b.cells,0);
+  $('resultBar').innerHTML = sides().map((sd,i)=>{
+    const w = sum ? n[sd.color]/sum*100 : 100/sides().length;
+    return `<div style="width:${w}%;background:${INKC[sd.color]};${i?'border-left:3px solid #111;':''}"></div>`;
+  }).join('');
+  $('resultScores').innerHTML = list.map((sd,rank)=>`
+    <div class="rs${!tie&&rank===0?' win':''}">
+      <div class="rh"><span class="rank">${rank+1}</span><span class="sw" style="background:${INKC[sd.color]}"></span>${sideName(sd)}</div>
+      <div class="rv">${(sd.cells/total*100).toFixed(1)}%</div>
+      <div class="rw">${sd.members.map(p=>`<span class="rmem">${artTag(p.weapon,p.color,'res-art')}${sd.members.length>1?p.name+'：':''}${WNAME[p.weapon]}</span>`).join('')}</div>
+    </div>`).join('');
+  $('resultScores').classList.toggle('many', list.length>2);
   $('resultStage').textContent = `ステージ：${STAGE_DATA[currentStage].name}`;
   openModal('resultModal');
 }

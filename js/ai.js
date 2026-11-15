@@ -3,7 +3,9 @@
 //  CPU AI  ―  GameAI class
 // =====================================================
 class GameAI {
-  constructor(){
+  constructor(cpu){
+    this.cpu          = cpu;      // このAIが動かすプレイヤー
+    this.foe          = null;     // いま狙っている敵
     this.faceDir      = 'left';
     this.moveDir      = 'left';   // 最後に実際に移動した方向
     this.state        = 'paint';  // 'paint'|'attack'|'refill'
@@ -34,8 +36,28 @@ class GameAI {
     this.boredomRegion = null;    // 現在の 3×3 領域 {rx,ry}
   }
 
+  // 色の判定：敵の色（自分以外のインク）／自分の色
+  _enemyInk(v){ return v>0 && v!==this.cpu.color; }
+  _ownInk(v){ return v===this.cpu.color; }
+  // 狙う敵を選ぶ：いちばん近い敵。いまの相手より3マス以上近い敵がいたら乗りかえる
+  _pickFoe(){
+    const me=this.cpu;
+    const foes=players.filter(o=>isEnemy(me,o));
+    if(!foes.length) return me;
+    const d=o=>o.respawning?999:Math.abs(o.x-me.x)+Math.abs(o.y-me.y);
+    let best=foes.reduce((a,b)=>d(b)<d(a)?b:a);
+    if(this.foe&&foes.includes(this.foe)&&!this.foe.respawning&&d(this.foe)<=d(best)+3) best=this.foe;
+    if(best!==this.foe){ this.humanLastX=-1; this.humanLastY=-1; this.humanStillMs=0; }
+    this.foe=best;
+    return best;
+  }
+  // (x,y) に自分以外のプレイヤーがいるか
+  _occupied(x,y){ return players.some(o=>o!==this.cpu&&!o.respawning&&o.x===x&&o.y===y); }
+  // 敵のスタート地点のまわりか
+  _nearEnemySpawn(x,y){ return players.some(o=>isEnemy(this.cpu,o)&&Math.abs(x-o.spawn.x)<=1&&Math.abs(y-o.spawn.y)<=1); }
+
   update(dt){
-    const cpu=p2, human=p1;
+    const cpu=this.cpu, human=this._pickFoe();
     cpu.shootCd=Math.max(0,cpu.shootCd-dt);
 
     if(cpu.respawning){
@@ -168,7 +190,7 @@ class GameAI {
           const [lDir]=lateralDirs[0];
           const lx=cpu.x+perpDir.x, ly=cpu.y+perpDir.y;
           const lk=ky(lx,ly);
-          if(ib(lx,ly)&&!walls.has(lk)&&(stationSet.has(lk)||grid[ly][lx]!==1)){
+          if(ib(lx,ly)&&!walls.has(lk)&&(stationSet.has(lk)||!this._enemyInk(grid[ly][lx]))){
             this._move(cpu,lDir);
           } else {
             this.strafe=-this.strafe;
@@ -204,7 +226,7 @@ class GameAI {
 
     // ★ ローラー: 常に密着突進。リスポーン中は塗りジグザグ
     if(cpu.weapon==='roller'){
-      const humanSafeR=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafeR=human.respawning||safeZone(human.x,human.y,human);
       if(!humanSafeR&&inkPct>=0.20){
         this.state='attack';
         this.target=this._getCombatTarget(cpu,human);
@@ -222,7 +244,7 @@ class GameAI {
 
     // ★ チャージャー: 壁際の角で陣取り、LoSが通る場所を探す
     if(cpu.weapon==='charger'){
-      const humanSafe2=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafe2=human.respawning||safeZone(human.x,human.y,human);
       if(!humanSafe2&&inkPct>=0.25){
         const los=this.hasLineOfSight(cpu.x,cpu.y,human.x,human.y);
         if(los){
@@ -253,7 +275,7 @@ class GameAI {
 
     // ★ ボム: 通路やインクステーション付近に設置してトラップ
     if(cpu.weapon==='bomb'){
-      const humanSafe3=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafe3=human.respawning||safeZone(human.x,human.y,human);
       if(!humanSafe3&&inkPct>=0.30){
         const trapTarget=this._findTrapTarget(cpu,human);
         if(trapTarget){
@@ -272,7 +294,7 @@ class GameAI {
     }
     // ★ 地雷: 積極的にトラップを設置（キル・陣地・ステーション防衛）
     if(cpu.weapon==='mine'){
-      const humanSafe3m=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafe3m=human.respawning||safeZone(human.x,human.y,human);
       if(inkPct>=0.10){
         const mineTarget=this._findMineTrapTarget(cpu,human,humanSafe3m);
         this.state=humanSafe3m?'paint':'attack';
@@ -290,7 +312,7 @@ class GameAI {
 
     // ★ タツマキ/タックル: インク満タン時に突撃
     if(cpu.weapon==='tornado'||cpu.weapon==='tackle'){
-      const humanSafe5=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafe5=human.respawning||safeZone(human.x,human.y,human);
       if(!humanSafe5&&inkPct>=0.85){
         this.state='attack';
         this.target=this._getCombatTarget(cpu,human);
@@ -315,7 +337,7 @@ class GameAI {
 
     // ★ センスイ: インクが20%以上あれば積極的にワープ攻撃
     if(cpu.weapon==='sensui'){
-      const humanSafeSe=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafeSe=human.respawning||safeZone(human.x,human.y,human);
       if(!humanSafeSe&&inkPct>=0.20){
         this.state='attack';
         this.target=this._getCombatTarget(cpu,human);
@@ -332,7 +354,7 @@ class GameAI {
 
     // ★ デンキウナギ: 状況に応じて柔軟な運用（直接攻撃・反射待ち伏せ・塗り）
     if(cpu.weapon==='eel'){
-      const humanSafe6=human.respawning||safeZone(human.x,human.y,1);
+      const humanSafe6=human.respawning||safeZone(human.x,human.y,human);
       if(!humanSafe6&&inkPct>=0.15){
         // 射線が通っている場合: 60%の確率で直接攻撃（ゆらぎ）
         const los=this.hasLineOfSight(cpu.x,cpu.y,human.x,human.y);
@@ -369,7 +391,7 @@ class GameAI {
 
     // 戦闘フェーズ判定（★ 射線チェック付き）
     // リスポーン中 or セーフゾーン（無敵）は攻撃しない
-    const humanSafe=human.respawning||safeZone(human.x,human.y,1);
+    const humanSafe=human.respawning||safeZone(human.x,human.y,human);
     if(!humanSafe){
       const dist=Math.abs(human.x-cpu.x)+Math.abs(human.y-cpu.y);
       if(this._shouldEnterCombat(cpu.weapon,dist,inkPct)){
@@ -476,9 +498,9 @@ class GameAI {
       for(let dx=-R;dx<=R;dx++){
         const wx=human.x+dx, wy=human.y+dy;
         if(!this._walkable(wx,wy)) continue;
-        if(safeZone(wx,wy,1)) continue;
+        if(this._nearEnemySpawn(wx,wy)) continue;
         // 敵インクの上は歩けない
-        if(!stationSet.has(ky(wx,wy))&&grid[wy][wx]===1) continue;
+        if(!stationSet.has(ky(wx,wy))&&this._enemyInk(grid[wy][wx])) continue;
         // P1に射線が通るか
         if(!this.hasLineOfSight(wx,wy,human.x,human.y)) continue;
         // CPUから歩いて到達可能か（A*コストで判断）
@@ -514,9 +536,9 @@ class GameAI {
         const nx=x+ddx, ny=y+ddy, nk=ky(nx,ny);
         if(!ib(nx,ny)||walls.has(nk)) continue;
         // 敵インクは壁として通行不可（ステーションは可）
-        if(!stationSet.has(nk)&&grid[ny][nx]===1) continue;
+        if(!stationSet.has(nk)&&this._enemyInk(grid[ny][nx])) continue;
         // コスト: 自軍インク=1、白マス=2（敵インクは上で除外済み）
-        const cost=grid[ny][nx]===2?1:2;
+        const cost=this._ownInk(grid[ny][nx])?1:2;
         const ng=g+cost;
         if(gMap.has(nk)&&gMap.get(nk)<=ng) continue;
         gMap.set(nk,ng);
@@ -538,16 +560,16 @@ class GameAI {
         const nx=human.x+ddx, ny=human.y+ddy;
         if(!this._walkable(nx,ny)) continue;
         const nk=ky(nx,ny);
-        if(stationSet.has(nk)||grid[ny]?.[nx]!==1) return {x:nx,y:ny};
+        if(stationSet.has(nk)||!this._enemyInk(grid[ny]?.[nx])) return {x:nx,y:ny};
       }
       // 隣接マスが全て敵インクなら半径2まで広げる
       for(const[ddx,ddy] of [[0,-2],[0,2],[-2,0],[2,0],[-1,-1],[-1,1],[1,-1],[1,1]]){
         const nx=human.x+ddx, ny=human.y+ddy;
         if(!this._walkable(nx,ny)) continue;
         const nk=ky(nx,ny);
-        if(stationSet.has(nk)||grid[ny]?.[nx]!==1) return {x:nx,y:ny};
+        if(stationSet.has(nk)||!this._enemyInk(grid[ny]?.[nx])) return {x:nx,y:ny};
       }
-      return {x:RP2.x,y:RP2.y};
+      return {x:this.cpu.spawn.x,y:this.cpu.spawn.y};
     }
     // タックル: 直接P1へ
     if(w==='tackle'){
@@ -556,7 +578,7 @@ class GameAI {
         const nx=human.x+ddx, ny=human.y+ddy;
         if(this._walkable(nx,ny)) return {x:nx,y:ny};
       }
-      return {x:RP2.x,y:RP2.y};
+      return {x:this.cpu.spawn.x,y:this.cpu.spawn.y};
     }
     // 遠距離系: 適正距離(5-8マス)を保つ
     if(w==='charger'){
@@ -576,7 +598,7 @@ class GameAI {
     const px=human.x+pdx*SPACE, py=human.y+pdy*SPACE;
     // 歩けて、かつ敵インクでない（ステーションは可）
     const pnk=ky(px,py);
-    if(this._walkable(px,py)&&(stationSet.has(pnk)||grid[py]?.[px]!==1)){
+    if(this._walkable(px,py)&&(stationSet.has(pnk)||!this._enemyInk(grid[py]?.[px]))){
       return {x:px,y:py};
     }
     // フォールバック: 予測射撃（P1 の移動先 1 マス）
@@ -603,7 +625,7 @@ class GameAI {
       totalCount++;
       const nk=ky(nx,ny);
       if(walls.has(nk)) blockedCount++;
-      else if(!stationSet.has(nk)&&grid[ny][nx]===1) blockedCount++;
+      else if(!stationSet.has(nk)&&this._enemyInk(grid[ny][nx])) blockedCount++;
     }
     // 移動可能な方向がゼロ、またはターゲットへのA*が「そこへは行けない」状態
     if(totalCount>0&&blockedCount===totalCount) return true;
@@ -611,11 +633,11 @@ class GameAI {
     const dx=Math.sign(target.x-cpu.x), dy=Math.sign(target.y-cpu.y);
     if(dx!==0){
       const nk=ky(cpu.x+dx,cpu.y);
-      if(ib(cpu.x+dx,cpu.y)&&!walls.has(nk)&&!stationSet.has(nk)&&grid[cpu.y][cpu.x+dx]===1) return true;
+      if(ib(cpu.x+dx,cpu.y)&&!walls.has(nk)&&!stationSet.has(nk)&&this._enemyInk(grid[cpu.y][cpu.x+dx])) return true;
     }
     if(dy!==0){
       const nk=ky(cpu.x,cpu.y+dy);
-      if(ib(cpu.x,cpu.y+dy)&&!walls.has(nk)&&!stationSet.has(nk)&&grid[cpu.y+dy][cpu.x]===1) return true;
+      if(ib(cpu.x,cpu.y+dy)&&!walls.has(nk)&&!stationSet.has(nk)&&this._enemyInk(grid[cpu.y+dy][cpu.x])) return true;
     }
     return false;
   }
@@ -641,7 +663,7 @@ class GameAI {
       for(let i=1;i<=4;i++){
         cx+=d.x; cy+=d.y;
         if(!ib(cx,cy)||walls.has(ky(cx,cy))) break;
-        if(grid[cy][cx]===1){ hasEnemyInk=true; break; }
+        if(this._enemyInk(grid[cy][cx])){ hasEnemyInk=true; break; }
       }
       if(hasEnemyInk) return dir;
     }
@@ -660,7 +682,7 @@ class GameAI {
     const fd=DIR[flankDir];
     const nx=cpu.x+fd.x, ny=cpu.y+fd.y;
     const nk=ky(nx,ny);
-    if(ib(nx,ny)&&!walls.has(nk)&&(stationSet.has(nk)||grid[ny][nx]!==1)){
+    if(ib(nx,ny)&&!walls.has(nk)&&(stationSet.has(nk)||!this._enemyInk(grid[ny][nx]))){
       return flankDir;
     }
     // その方向が敵インク等で無理なら逆側
@@ -669,7 +691,7 @@ class GameAI {
     const ad=DIR[altDir];
     const ax=cpu.x+ad.x, ay=cpu.y+ad.y;
     const ak=ky(ax,ay);
-    if(ib(ax,ay)&&!walls.has(ak)&&(stationSet.has(ak)||grid[ay][ax]!==1)){
+    if(ib(ax,ay)&&!walls.has(ak)&&(stationSet.has(ak)||!this._enemyInk(grid[ay][ax]))){
       return altDir;
     }
     return null;
@@ -678,31 +700,31 @@ class GameAI {
   _findRefillTarget(cpu){
     let best=null, bestD=9999;
     inkStations.forEach(s=>{
-      if(s.color!==2) return;
+      if(s.color!==this.cpu.color) return;
       const d=Math.abs(s.x-cpu.x)+Math.abs(s.y-cpu.y);
       if(d<bestD){bestD=d;best=s;}
     });
-    return best?{x:best.x,y:best.y}:{x:RP2.x,y:RP2.y};
+    return best?{x:best.x,y:best.y}:{x:this.cpu.spawn.x,y:this.cpu.spawn.y};
   }
 
   _findPaintTarget(cpu){
     let bestScore=-Infinity, bestX=-1, bestY=-1;
     for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
       if(walls.has(ky(x,y))||stationSet.has(ky(x,y))) continue;
-      if(safeZone(x,y,1)) continue;
+      if(this._nearEnemySpawn(x,y)) continue;
       const g=grid[y][x];
-      if(g===2) continue; // 自軍インクはスキップ
+      if(this._ownInk(g)) continue; // 自軍インクはスキップ
       const dist=Math.abs(x-cpu.x)+Math.abs(y-cpu.y);
       if(dist===0) continue;
-      // 白マス(g===0)と敵インク(g===1)を両方ターゲットに。
+      // 白マス(g===0)と敵インク(this._enemyInk(g))を両方ターゲットに。
       // 敵インクマスは踏めないので実効距離を+1（隣接して射撃するため）
-      const effectiveDist=(g===1)?dist+1:dist;
-      let score=(g===1?22:12)-effectiveDist*0.5;
+      const effectiveDist=(this._enemyInk(g))?dist+1:dist;
+      let score=(this._enemyInk(g)?22:12)-effectiveDist*0.5;
       score+=Math.max(0,5-Math.abs(x-COLS/2)*0.25-Math.abs(y-ROWS/2)*0.25);
       if(score>bestScore){bestScore=score;bestX=x;bestY=y;}
     }
     if(bestX>=0) return {x:bestX,y:bestY};
-    return {x:RP2.x,y:RP2.y};
+    return {x:this.cpu.spawn.x,y:this.cpu.spawn.y};
   }
 
   // ── 弾回避 ─────────────────────────────────────────
@@ -722,8 +744,8 @@ class GameAI {
         const nk=ky(nx,ny);
         if(!ib(nx,ny)||walls.has(nk)) continue;
         // 退避先も敵インクは避ける（プレイヤーと同ルール）
-        if(!stationSet.has(nk)&&grid[ny][nx]===1) continue;
-        if(!p1.respawning&&nx===p1.x&&ny===p1.y) continue;
+        if(!stationSet.has(nk)&&this._enemyInk(grid[ny][nx])) continue;
+        if(this._occupied(nx,ny)) continue;
         if(nx===h1x&&ny===h1y) continue;
         return dirName;
       }
@@ -741,7 +763,7 @@ class GameAI {
         const d=DIR[dir];
         const nx=cpu.x+d.x, ny=cpu.y+d.y;
         const nk=ky(nx,ny);
-        if(ib(nx,ny)&&!walls.has(nk)&&!stationSet.has(nk)&&grid[ny][nx]===1) enemyInkAdj++;
+        if(ib(nx,ny)&&!walls.has(nk)&&!stationSet.has(nk)&&this._enemyInk(grid[ny][nx])) enemyInkAdj++;
       }
       if(enemyInkAdj>=2){
         // タックルで脱出（cpu.dirを脱出方向に設定してdoTackle）
@@ -762,15 +784,15 @@ class GameAI {
       const nk=ky(nx,ny);
       if(!ib(nx,ny)||walls.has(nk)) continue;
       // 敵インクも避ける（プレイヤーと同ルール）
-      if(!stationSet.has(nk)&&grid[ny][nx]===1) continue;
-      if(!p1.respawning&&nx===p1.x&&ny===p1.y) continue;
+      if(!stationSet.has(nk)&&this._enemyInk(grid[ny][nx])) continue;
+      if(this._occupied(nx,ny)) continue;
       this._move(cpu,dir); return;
     }
     // 全方向が壁か敵インクで塞がれている場合 → 隣接する敵インクの方向を向いて射撃で切り開く
     for(const dir of dirs){
       const d=DIR[dir];
       const nx=cpu.x+d.x, ny=cpu.y+d.y;
-      if(ib(nx,ny)&&!walls.has(ky(nx,ny))&&grid[ny][nx]===1){
+      if(ib(nx,ny)&&!walls.has(ky(nx,ny))&&this._enemyInk(grid[ny][nx])){
         this.moveDir=dir; break; // 向き更新して_doShootに任せる
       }
     }
@@ -805,7 +827,7 @@ class GameAI {
   // ── 戦闘用: 敵が射線上にいる方向を返す ─────────────
   _getCombatShootDir(cpu,human){
     // リスポーン中 or セーフゾーン（無敵）には撃たない
-    if(human.respawning||safeZone(human.x,human.y,1)) return null;
+    if(human.respawning||safeZone(human.x,human.y,human)) return null;
     const w=cpu.weapon;
     const inkOk=(INK_COST[w]||0)===0||cpu.ink>=(INK_COST[w]||0);
     if(!inkOk) return null;
@@ -853,7 +875,7 @@ class GameAI {
         cx+=d.x; cy+=d.y;
         if(!ib(cx,cy)||walls.has(ky(cx,cy))) break;
         const g=grid[cy][cx];
-        if(g===0||g===1) count++; // 白マスまたは敵インク
+        if(g===0||this._enemyInk(g)) count++; // 白マスまたは敵インク
         // 自軍インクを超えても塗れるマスを探す
       }
       if(count>bestCount){bestCount=count;bestDir=dirName;}
@@ -983,8 +1005,8 @@ class GameAI {
     let best=null, bestScore=-9999;
     for(let y=1;y<ROWS-1;y++) for(let x=1;x<COLS-1;x++){
       if(!this._walkable(x,y)) continue;
-      if(!stationSet.has(ky(x,y))&&grid[y][x]===1) continue;
-      if(safeZone(x,y,1)) continue;
+      if(!stationSet.has(ky(x,y))&&this._enemyInk(grid[y][x])) continue;
+      if(this._nearEnemySpawn(x,y)) continue;
       // 壁隣接マス（陣地感）を優先
       let wallAdj=0;
       for(const[ddx,ddy] of [[0,-1],[0,1],[-1,0],[1,0]]){
@@ -1008,11 +1030,11 @@ class GameAI {
     let best=null, bestScore=-9999;
     // 敵のインクステーション付近
     for(const s of inkStations){
-      if(s.color===2) continue; // 自分のステーションは除外
+      if(s.color===this.cpu.color) continue; // 自分のステーションは除外
       for(const[ddx,ddy] of [[0,-1],[0,1],[-1,0],[1,0]]){
         const x=s.x+ddx, y=s.y+ddy;
         if(!this._walkable(x,y)) continue;
-        if(!stationSet.has(ky(x,y))&&grid[y][x]===1) continue;
+        if(!stationSet.has(ky(x,y))&&this._enemyInk(grid[y][x])) continue;
         const cpuDist=Math.abs(x-cpu.x)+Math.abs(y-cpu.y);
         const enemyDist=Math.abs(x-human.x)+Math.abs(y-human.y);
         const score=10-cpuDist*0.4+enemyDist*0.2;
@@ -1023,7 +1045,7 @@ class GameAI {
     // 通路（壁2面以上に囲まれたセル）を探す
     for(let y=1;y<ROWS-1;y++) for(let x=1;x<COLS-1;x++){
       if(!this._walkable(x,y)) continue;
-      if(!stationSet.has(ky(x,y))&&grid[y][x]===1) continue;
+      if(!stationSet.has(ky(x,y))&&this._enemyInk(grid[y][x])) continue;
       let wallAdj=0;
       for(const[ddx,ddy] of [[0,-1],[0,1],[-1,0],[1,0]]){
         if(walls.has(ky(x+ddx,y+ddy))||!ib(x+ddx,y+ddy)) wallAdj++;
@@ -1045,10 +1067,10 @@ class GameAI {
 
     for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
       if(!this._walkable(x,y)) continue;
-      if(safeZone(x,y,2)) continue; // 自スポーン付近は除外
+      if(safeZone(x,y,this.cpu)) continue; // 自スポーン付近は除外
       const nk=ky(x,y);
       if(stationSet.has(nk)) continue;
-      if(grid[y][x]===1) continue; // 敵インク上は歩けない
+      if(this._enemyInk(grid[y][x])) continue; // 敵インク上は歩けない
       const cpuDist=Math.abs(x-cpu.x)+Math.abs(y-cpu.y);
       if(cpuDist>14) continue; // 遠すぎは除外
 
@@ -1077,14 +1099,14 @@ class GameAI {
       for(const[ddx,ddy] of [[0,-1],[0,1],[-1,0],[1,0]]){
         const nx2=x+ddx, ny2=y+ddy;
         if(!ib(nx2,ny2)) continue;
-        if(grid[ny2][nx2]===2) ownAdj++;
+        if(this._ownInk(grid[ny2][nx2])) ownAdj++;
         else if(grid[ny2][nx2]===0) neutralAdj++;
       }
       if(ownAdj>0&&neutralAdj>0) score+=6; // 境界ボーナス
 
       // 【ステーション防衛評価】P1のステーション付近か
       for(const s of inkStations){
-        if(s.color!==1) continue;
+        if(s.color===this.cpu.color) continue;
         const sd=Math.abs(x-s.x)+Math.abs(y-s.y);
         if(sd<=2) score+=10-sd*2;
       }
@@ -1103,7 +1125,7 @@ class GameAI {
     let best=null, bestScore=-9999;
     for(let y=1;y<ROWS-1;y++) for(let x=1;x<COLS-1;x++){
       if(!this._walkable(x,y)) continue;
-      if(!stationSet.has(ky(x,y))&&grid[y][x]===1) continue;
+      if(!stationSet.has(ky(x,y))&&this._enemyInk(grid[y][x])) continue;
       // 4方向で3マス以内に壁があるか（eel反射が発生しやすい場所）
       let wallInRange=0;
       for(const[ddx,ddy] of [[0,-1],[0,1],[-1,0],[1,0]]){
@@ -1149,13 +1171,13 @@ class GameAI {
     let bestScore=-Infinity, bestX=-1, bestY=-1;
     for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
       if(walls.has(ky(x,y))||stationSet.has(ky(x,y))) continue;
-      if(safeZone(x,y,1)) continue;
+      if(this._nearEnemySpawn(x,y)) continue;
       const g=grid[y][x];
-      if(g===2) continue; // 自軍インクはスキップ
+      if(this._ownInk(g)) continue; // 自軍インクはスキップ
       const dist=Math.abs(x-cpu.x)+Math.abs(y-cpu.y);
       if(dist<6) continue; // 近すぎるマスは候補外（遠いエリアを強制）
       // 敵インクを優先しつつ距離ペナルティを軽めに（遠いほど高スコア）
-      const score=(g===1?20:10)-dist*0.05;
+      const score=(this._enemyInk(g)?20:10)-dist*0.05;
       if(score>bestScore){bestScore=score;bestX=x;bestY=y;}
     }
     if(bestX>=0) return {x:bestX,y:bestY};

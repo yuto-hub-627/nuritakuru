@@ -46,8 +46,9 @@ const SPINNER_SPINUP  = 1500;
 const SPINNER_INK_PER_BULLET = 2;
 const SPINNER_COOLDOWN = 200;
 
-const RP1 = { x:1,      y:ROWS-2 };
-const RP2 = { x:COLS-2, y:1      };
+// スタート地点：0=左下 1=右上 2=左上 3=右下（チーム戦は 0・2 が左チーム、1・3 が右チーム）
+const SPAWNS = [ {x:1,y:ROWS-2}, {x:COLS-2,y:1}, {x:1,y:1}, {x:COLS-2,y:ROWS-2} ];
+const RP1 = SPAWNS[0], RP2 = SPAWNS[1];
 
 
 // =====================================================
@@ -62,7 +63,13 @@ let grid=[], walls=new Set(), stationSet=new Set(), inkStations=[];
 let bullets=[], fxList=[], mines=[];
 let mineChainQueue=[]; // [{x,y,color,owner,delay}] 連鎖爆発キュー
 let sensuiWaves=[];    // [{x,y,color,owner,radius,ms}] センスイ波紋キュー
-let p1, p2;
+let p1, p2;           // 互換用：players[0]・players[1]
+let players = [];     // 試合に出ている全員
+// 試合の設定（ui.js が startGame の前に入れる）：[{slot, color, weapon, human, keys, name}]
+let matchSlots = [
+  {slot:0,color:1,weapon:'shooter',human:true,name:'P1'},
+  {slot:1,color:2,weapon:'shooter',human:false,name:'CPU'},
+];
 let timer=100, timerInt=null, running=false, isPaused=false, raf=null;
 let w1='shooter', w2='shooter';
 let btick=0;
@@ -107,9 +114,22 @@ const WEAPONS=[
 // =====================================================
 function ib(x,y){return x>=0&&x<COLS&&y>=0&&y<ROWS;}
 function ky(x,y){return `${x},${y}`;}
-function safeZone(x,y,color){
-  const rp=color===1?RP1:RP2;
-  return Math.abs(x-rp.x)<=1&&Math.abs(y-rp.y)<=1;
+// スタート地点のまわり（3×3）は安全地帯。who＝プレイヤー（その人の地点）か色番号（その色の全員の地点）
+function safeZone(x,y,who){
+  const list = typeof who==='object' ? [who.spawn] : players.filter(p=>p.color===who).map(p=>p.spawn);
+  return list.some(rp=>rp&&Math.abs(x-rp.x)<=1&&Math.abs(y-rp.y)<=1);
+}
+// 敵どうしか（色が違えば敵。チーム戦は味方が同じ色）
+function isEnemy(a,b){ return a!==b && a.color!==b.color; }
+function enemiesOf(p){ return players.filter(o=>isEnemy(p,o)); }
+// (x,y) にいる敵を倒す。倒したら true
+function hitEnemyAt(owner,x,y){
+  let hit=false;
+  players.forEach(o=>{
+    if(!isEnemy(owner,o)||o.respawning) return;
+    if(o.x===x&&o.y===y&&!safeZone(x,y,o)){ doRespawn(o); hit=true; }
+  });
+  return hit;
 }
 function paintCell(x,y,color){
   if(!ib(x,y)||walls.has(ky(x,y))||stationSet.has(ky(x,y))) return;
@@ -125,14 +145,10 @@ function paintDiamond(cx,cy,color,R){
 }
 // ひし形範囲内の敵にダメージ
 function checkDamageInDiamond(cx,cy,R,owner){
-  const other=owner===p1?p2:p1;
-  if(other.respawning) return;
   for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
     if(Math.abs(dx)+Math.abs(dy)>R) continue;
     const nx=cx+dx, ny=cy+dy;
-    if(ib(nx,ny)&&nx===other.x&&ny===other.y&&!safeZone(nx,ny,other.color)){
-      doRespawn(other); return;
-    }
+    if(ib(nx,ny)) hitEnemyAt(owner,nx,ny);
   }
 }
 function cellColor(x,y){
@@ -145,6 +161,8 @@ function cellColor(x,y){
 function spawnSafe(x,y){
   if(x<=3&&y>=13) return true;   // P1 spawn area
   if(x>=COLS-4&&y<=4) return true; // P2 spawn area
+  if(x<=3&&y<=4) return true;        // 3人目（左上）
+  if(x>=COLS-4&&y>=13) return true;  // 4人目（右下）
   return false;
 }
 function addWall(x,y){ if(ib(x,y)&&!spawnSafe(x,y)) walls.add(ky(x,y)); }
@@ -277,9 +295,19 @@ function initGame(){
   // Build stage
   STAGE_DATA[currentStage].fn();
 
+  // Players（matchSlots から作る）
+  players = matchSlots.map(m=>{
+    const sp=SPAWNS[m.slot];
+    return {x:sp.x,y:sp.y,spawn:sp,slot:m.slot,dir:sp.x<COLS/2?'right':'left',color:m.color,
+      weapon:m.weapon,human:!!m.human,keys:m.keys||null,name:m.name||'',respawning:false,
+      shootCd:0,moveCd:0,ink:INK_MAX,chargeHeld:0,spinnerHeld:0,
+      spinnerFireCd:0,spinnerCd:0,spinnerQueue:[],spinnerQueueCd:0,tornadoCd:0,
+      invincible:false,sensuiHeld:0};
+  });
+  p1=players[0]; p2=players[1];
+
   // Paint spawns
-  paintArea(RP1.x,RP1.y,1,2);
-  paintArea(RP2.x,RP2.y,2,2);
+  players.forEach(p=>paintArea(p.spawn.x,p.spawn.y,p.color,2));
 
   // Count paintable cells
   totalPaintable=0;
@@ -289,18 +317,9 @@ function initGame(){
   // Ink stations（ステージごとに固定配置）
   placeFixedStations(currentStage);
 
-  // Players
-  p1={x:RP1.x,y:RP1.y,dir:'right',color:1,weapon:w1,respawning:false,
-      shootCd:0,moveCd:0,ink:INK_MAX,chargeHeld:0,spinnerHeld:0,
-      spinnerFireCd:0,spinnerCd:0,spinnerQueue:[],spinnerQueueCd:0,tornadoCd:0,
-      invincible:false,sensuiHeld:0};
-  p2={x:RP2.x,y:RP2.y,dir:'left', color:2,weapon:w2,respawning:false,
-      shootCd:0,moveCd:0,ink:INK_MAX,chargeHeld:0,spinnerHeld:0,
-      spinnerFireCd:0,spinnerCd:0,spinnerQueue:[],spinnerQueueCd:0,tornadoCd:0,
-      invincible:false,sensuiHeld:0};
-
-  // CPU AI reset
-  gameAI = new GameAI();
+  // CPU は1体ずつ思考を持つ
+  players.forEach(p=>{ if(!p.human) p.ai=new GameAI(p); });
+  gameAI = players.find(p=>p.ai)?.ai || null;
 
 
   updateWeaponUI(); updateScores(); updateInkUI();
@@ -366,7 +385,26 @@ function placeFixedStations(stage){
       [2,26, 2],[2,22, 4],[2,18, 8] ],
   ];
   const defs = layouts[stage] || layouts[0];
-  defs.forEach(([c,x,y])=>addStation(c,x,y));
+  // レイアウトの色1＝左下（slot0）用、色2＝右上（slot1）用。slot2・3 は上下に反転して使う
+  players.forEach(p=>{
+    const base = (p.slot===0||p.slot===2) ? 1 : 2;
+    defs.filter(d=>d[0]===base).forEach(([,x,y])=>{
+      const ty = (p.slot>=2) ? ROWS-1-y : y;
+      const at = nearestFree(x,ty);
+      if(at) addStation(p.color,at.x,at.y);
+    });
+  });
+}
+// (x,y) から一番近い、壁でも他のステーションでもスタート地点でもないマス
+function nearestFree(x,y){
+  for(let r=0;r<6;r++) for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+    if(Math.max(Math.abs(dx),Math.abs(dy))!==r) continue;
+    const nx=x+dx, ny=y+dy;
+    if(!ib(nx,ny)||walls.has(ky(nx,ny))||stationSet.has(ky(nx,ny))) continue;
+    if(players.some(p=>Math.abs(nx-p.spawn.x)<=1&&Math.abs(ny-p.spawn.y)<=1)) continue;
+    return {x:nx,y:ny};
+  }
+  return null;
 }
 
 // =====================================================
@@ -388,10 +426,9 @@ function move(player,dir){
   const nx=player.x+d.x, ny=player.y+d.y;
   if(!ib(nx,ny)) return;
   if(walls.has(ky(nx,ny))) return;
-  const enemyColor=player.color===1?2:1;
-  if(!stationSet.has(ky(nx,ny))&&grid[ny][nx]===enemyColor) return;
-  const other=player===p1?p2:p1;
-  if(!other.respawning&&nx===other.x&&ny===other.y) return;
+  const g=grid[ny][nx];
+  if(!stationSet.has(ky(nx,ny))&&g!==0&&g!==player.color) return; // 敵の色には入れない
+  if(players.some(o=>o!==player&&!o.respawning&&o.x===nx&&o.y===ny)) return;
   player.x=nx; player.y=ny;
   paintCell(nx,ny,player.color);
   const si=inkStations.findIndex(s=>s.x===nx&&s.y===ny);
@@ -427,11 +464,9 @@ function rollerPaint(player){
   const cost=allOwn?0:INK_COST.roller;
   if(player.ink<cost) return;
   player.ink=Math.max(0,player.ink-cost);
-  const other=player===p1?p2:p1;
   cells.forEach(c=>{
     paintCell(c.x,c.y,player.color);
-    if(!other.respawning&&c.x===other.x&&c.y===other.y&&!safeZone(c.x,c.y,other.color))
-      doRespawn(other);
+    hitEnemyAt(player,c.x,c.y);
   });
 }
 
@@ -473,15 +508,13 @@ function doShooter(p){
 }
 function doCharger(p,range){
   const d=DIR[p.dir]; let cx=p.x,cy=p.y;
-  const other=p===p1?p2:p1; let actualLen=0;
+  let actualLen=0;
   for(let i=0;i<range;i++){
     cx+=d.x; cy+=d.y;
     if(!ib(cx,cy)||walls.has(ky(cx,cy))) break;
     actualLen++;
     paintCell(cx,cy,p.color);
-    if(!other.respawning&&cx===other.x&&cy===other.y&&!safeZone(cx,cy,other.color)){
-      doRespawn(other); // 貫通: breakしない
-    }
+    hitEnemyAt(p,cx,cy); // 貫通: breakしない
   }
   fxList.push({type:'beam',x:p.x+d.x,y:p.y+d.y,dx:d.x,dy:d.y,color:p.color,
                life:10,max:10,len:Math.max(1,actualLen)});
@@ -529,13 +562,11 @@ function doTornadoPaint(player){
   if(player.ink<INK_COST.tornado){ fxList.push({type:'nink',x:player.x,y:player.y,life:10,max:10}); return; }
   const full=player.ink>=INK_MAX, range=full?2:1;
   player.ink=Math.max(0,player.ink-INK_COST.tornado);
-  const other=player===p1?p2:p1;
   for(let dy=-range;dy<=range;dy++) for(let dx=-range;dx<=range;dx++){
     if(dx===0&&dy===0) continue;
     const nx=player.x+dx, ny=player.y+dy;
     paintCell(nx,ny,player.color);
-    if(!other.respawning&&ib(nx,ny)&&nx===other.x&&ny===other.y&&!safeZone(nx,ny,other.color))
-      doRespawn(other);
+    if(ib(nx,ny)) hitEnemyAt(player,nx,ny);
   }
   fxList.push({type:'tornado',x:player.x,y:player.y,color:player.color,range,life:10,max:10});
 }
@@ -549,13 +580,11 @@ function doMine(p){
 function explodeMine(bx,by,color,owner){
   fxList.push({type:'exp',x:bx,y:by,color,life:14,max:14});
   playSE('bomb');
-  const enemy=owner===p1?p2:p1;
   for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
     const nx=bx+dx, ny=by+dy;
     paintCell(nx,ny,color);
-    // 敵のみダメージ（オーナーは無敵）
-    if(!enemy.respawning&&ib(nx,ny)&&nx===enemy.x&&ny===enemy.y&&!safeZone(nx,ny,enemy.color))
-      doRespawn(enemy);
+    // 敵のみダメージ（オーナーと味方は無敵）
+    if(ib(nx,ny)) hitEnemyAt(owner,nx,ny);
   }
   // 爆発範囲内の他の地雷を200ms後に連鎖誘爆
   mines.forEach(m=>{
@@ -637,15 +666,13 @@ function doTackle(player){
   player.ink=Math.max(0,player.ink-INK_COST.tackle);
   player.invincible=true; // 無敵フラグON
   const d=DIR[player.dir];
-  const other=player===p1?p2:p1;
   for(let i=0;i<5;i++){
     const nx=player.x+d.x, ny=player.y+d.y;
     if(!ib(nx,ny)||walls.has(ky(nx,ny))) break;
     // 敵インクも通過可（地形無視）
     player.x=nx; player.y=ny;
     paintCell(nx,ny,player.color);
-    if(!other.respawning&&nx===other.x&&ny===other.y&&!safeZone(nx,ny,other.color)){
-      doRespawn(other);
+    if(hitEnemyAt(player,nx,ny)){
       fxList.push({type:'exp',x:nx,y:ny,color:player.color,life:10,max:10});
       break;
     }
@@ -670,10 +697,7 @@ function tickBullets(){
       if(nx!==b.x||ny!==b.y){
         b.x=nx; b.y=ny; b.steps--;
         paintCell(nx,ny,b.color);
-        const other=b.owner===p1?p2:p1;
-        if(!other.respawning&&nx===other.x&&ny===other.y&&!safeZone(nx,ny,other.color)){
-          doRespawn(other); dead.push(i);
-        }
+        if(hitEnemyAt(b.owner,nx,ny)) dead.push(i);
       }
       return;
     }
@@ -691,10 +715,7 @@ function tickBullets(){
         b.x=nx2; b.y=ny2;
         paintCell(nx2,ny2,b.color);
         fxList.push({type:'eelBounce',x:nx2,y:ny2,color:b.color,life:7,max:7});
-        const oth=b.owner===p1?p2:p1;
-        if(!oth.respawning&&nx2===oth.x&&ny2===oth.y&&!safeZone(nx2,ny2,oth.color)){
-          doRespawn(oth); dead.push(i);
-        }
+        if(hitEnemyAt(b.owner,nx2,ny2)) dead.push(i);
         return;
       }
       // 前進
@@ -715,10 +736,7 @@ function tickBullets(){
       }
       b.x=nx; b.y=ny;
       paintCell(nx,ny,b.color);
-      const other=b.owner===p1?p2:p1;
-      if(!other.respawning&&nx===other.x&&ny===other.y&&!safeZone(nx,ny,other.color)){
-        doRespawn(other); dead.push(i);
-      }
+      if(hitEnemyAt(b.owner,nx,ny)) dead.push(i);
       return;
     }
     // --- CURLING: 壁に当たるまで直進しながら全マスを塗る ---
@@ -727,10 +745,7 @@ function tickBullets(){
       if(!ib(nx,ny)||walls.has(ky(nx,ny))){ dead.push(i); return; }
       b.x=nx; b.y=ny; b.steps--;
       paintCell(nx,ny,b.color);
-      const other=b.owner===p1?p2:p1;
-      if(!other.respawning&&nx===other.x&&ny===other.y&&!safeZone(nx,ny,other.color)){
-        doRespawn(other); dead.push(i);
-      }
+      if(hitEnemyAt(b.owner,nx,ny)) dead.push(i);
       return;
     }
     if(b.steps<=0){ if(b.type==='b') explodeBomb(b.x,b.y,b.color,b.owner); dead.push(i); return; }
@@ -741,13 +756,8 @@ function tickBullets(){
     }
     b.x=nx; b.y=ny; b.steps--;
     paintCell(nx,ny,b.color);
-    const other=b.owner===p1?p2:p1;
-    if(!other.respawning&&b.x===other.x&&b.y===other.y&&!safeZone(b.x,b.y,other.color)){
-      if(b.type==='b'){
-        doRespawn(other); // ボム貫通: 爆発せず敵を倒して通過
-      } else {
-        doRespawn(other); dead.push(i);
-      }
+    if(hitEnemyAt(b.owner,b.x,b.y)){
+      if(b.type!=='b') dead.push(i); // ボム貫通: 爆発せず敵を倒して通過
     }
   });
   for(let i=dead.length-1;i>=0;i--) bullets.splice(dead[i],1);
@@ -778,9 +788,8 @@ function tickMines(){
     m.life--;
     if(m.ownerCd>0) m.ownerCd--;
     if(m.life<=0){ dead.add(i); return; }
-    const enemy=m.color===1?p2:p1;
     // 敵が踏んだ
-    if(!enemy.respawning&&enemy.x===m.x&&enemy.y===m.y&&!safeZone(m.x,m.y,enemy.color)){
+    if(players.some(o=>isEnemy(m.owner,o)&&!o.respawning&&o.x===m.x&&o.y===m.y&&!safeZone(m.x,m.y,o))){
       explodeMine(m.x,m.y,m.color,m.owner); dead.add(i); return;
     }
     // 設置者本人が踏んだ（ownerCd>0の間は誤爆防止）
@@ -802,7 +811,7 @@ function doRespawn(player){
   player.respawning=true; player.x=-99; player.y=-99;
   player.sensuiHeld=0;
   setTimeout(()=>{
-    const rp=player.color===1?RP1:RP2;
+    const rp=player.spawn;
     player.x=rp.x; player.y=rp.y;
     player.respawning=false; player.ink=INK_MAX;
     paintArea(rp.x,rp.y,player.color,1);
@@ -816,6 +825,11 @@ function doRespawn(player){
 const C1='#FF3D8B',C1D='#B0125A',C1B='#FF5FA2';
 const C2='#39FF88',C2D='#0E8C45',C2B='#5CFFA0';
 const C2S='#39FF88'; // P2 ステーション用
+const C3='#FFE14D',C3D='#A88A00',C3B='#FFEA7A';
+const C4='#3DA9FF',C4D='#0B5FA8',C4B='#73C2FF';
+// 色番号 → 色（0 は未使用）
+const INKC=[null,C1,C2,C3,C4], INKD=[null,C1D,C2D,C3D,C4D], INKB=[null,C1B,C2B,C3B,C4B];
+const INKGLOW=[null,'#ffffaa','#aaffff','#fff2b0','#b8e4ff'];
 const ASPHALT='#2A2A2A', ASPHALT_LINE='rgba(255,255,255,.045)';
 const BRICK='#6E3B30', BRICK_HI='#8A4C3E', MORTAR='#3A2420';
 // マスごとに決まった乱数（毎フレーム同じ値になるので、ちらつかない）
@@ -831,7 +845,7 @@ function draw(){
     else if(stationSet.has(ky(c,r))){ drawGround(x,y,c,r); }
     else{
       const v=grid[r][c];
-      if(v===1||v===2) drawInk(x,y,c,r,v===1?C1:C2);
+      if(v>0) drawInk(x,y,c,r,INKC[v]);
       else drawGround(x,y,c,r);
     }
   }
@@ -839,7 +853,7 @@ function draw(){
   const t=Date.now();
   inkStations.forEach(s=>{
     const x=s.x*CELL, y=s.y*CELL;
-    const col=s.color===1?C1:C2S;
+    const col=INKC[s.color];
     const pulse=.65+.35*Math.sin(t*.004+(s.x*3+s.y));
     ctx.fillStyle='#1B1B1B'; ctx.fillRect(x,y,CELL,CELL);
     ctx.save(); ctx.globalAlpha=.30*pulse; ctx.fillStyle=col; ctx.fillRect(x,y,CELL,CELL); ctx.restore();
@@ -850,12 +864,12 @@ function draw(){
     ctx.fillRect(cx-arm*.26,cy-arm,arm*.52,arm*2);
   });
 
-  drawGlow(RP1.x,RP1.y,C1); drawGlow(RP2.x,RP2.y,C2);
+  players.forEach(p=>drawGlow(p.spawn.x,p.spawn.y,INKC[p.color]));
 
   fxList.forEach(f=>{
     const ft=f.life/f.max;
     if(f.type==='exp'){
-      ctx.save(); ctx.globalAlpha=ft*.65; ctx.fillStyle=f.color===1?C1:C2;
+      ctx.save(); ctx.globalAlpha=ft*.65; ctx.fillStyle=INKC[f.color];
       if(f.r!==undefined){
         // ひし形爆発
         const R=f.r;
@@ -871,7 +885,7 @@ function draw(){
       }
       ctx.restore();
     } else if(f.type==='beam'){
-      ctx.save(); ctx.globalAlpha=ft*.5; ctx.fillStyle=f.color===1?C1:C2;
+      ctx.save(); ctx.globalAlpha=ft*.5; ctx.fillStyle=INKC[f.color];
       let cx=f.x,cy=f.y;
       for(let i=0;i<(f.len||6);i++){
         if(!ib(cx,cy)) break;
@@ -881,7 +895,7 @@ function draw(){
       ctx.restore();
     } else if(f.type==='tornado'){
       ctx.save(); ctx.globalAlpha=ft*.7;
-      const tc=f.color===1?C1:C2;
+      const tc=INKC[f.color];
       const tx=f.x*CELL+CELL/2, ty=f.y*CELL+CELL/2;
       const t2=Date.now()*.015, range=f.range||1;
       const orbs=range===2?12:8;
@@ -895,7 +909,7 @@ function draw(){
       ctx.restore();
     } else if(f.type==='eelBounce'){
       ctx.save(); ctx.globalAlpha=ft*.9;
-      const ec=f.color===1?'#ffffaa':'#aaffff';
+      const ec=INKGLOW[f.color];
       const ex=f.x*CELL+CELL/2, ey=f.y*CELL+CELL/2;
       ctx.shadowColor=ec; ctx.shadowBlur=10;
       ctx.beginPath(); ctx.arc(ex,ey,CELL*(.5-ft*.2),0,Math.PI*2);
@@ -910,12 +924,12 @@ function draw(){
       ctx.save(); ctx.globalAlpha=ft*.95;
       ctx.font=`bold ${Math.floor(CELL*.65)}px Arial`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle=f.color===1?'#ff6eb4':'#4dff91';
+      ctx.fillStyle=INKC[f.color];
       ctx.fillText('FULL!',f.x*CELL+CELL/2,f.y*CELL+CELL/2-CELL*(.7*(1-ft)));
       ctx.restore();
     } else if(f.type==='gren'){
       // グレネード大爆発 5×5
-      ctx.save(); ctx.globalAlpha=ft*.75; ctx.fillStyle=f.color===1?C1:C2;
+      ctx.save(); ctx.globalAlpha=ft*.75; ctx.fillStyle=INKC[f.color];
       for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
         const nx=f.x+dx, ny=f.y+dy;
         if(ib(nx,ny)) ctx.fillRect(nx*CELL,ny*CELL,CELL,CELL);
@@ -923,18 +937,18 @@ function draw(){
       ctx.restore();
       // 爆発リング
       ctx.save(); ctx.globalAlpha=ft*.9;
-      ctx.strokeStyle=f.color===1?'#ffaa00':'#00ffaa';
+      ctx.strokeStyle=INKGLOW[f.color];
       ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(f.x*CELL+CELL/2,f.y*CELL+CELL/2,CELL*(2.5*(1-ft)+.5),0,Math.PI*2);
       ctx.stroke(); ctx.restore();
     } else if(f.type==='tackle'){
       ctx.save(); ctx.globalAlpha=ft*.7;
-      ctx.fillStyle=f.color===1?C1:C2;
+      ctx.fillStyle=INKC[f.color];
       ctx.fillRect(f.x*CELL-CELL*.5,f.y*CELL-CELL*.5,CELL*2,CELL*2);
       ctx.restore();
     } else if(f.type==='sensui'){
       ctx.save();
-      const sc=f.color===1?C1:C2;
+      const sc=INKC[f.color];
       const R=f.radius||1;
       ctx.globalAlpha=ft*.45;
       ctx.fillStyle=sc;
@@ -960,18 +974,18 @@ function draw(){
       ctx.beginPath(); ctx.arc(bx,by,CELL*.22,0,Math.PI*2); ctx.fillStyle='#555'; ctx.fill();
       ctx.beginPath(); ctx.arc(bx-CELL*.07,by-CELL*.12,CELL*.09,0,Math.PI*2); ctx.fillStyle='#ff9900'; ctx.fill();
     } else if(b.type==='eel'){
-      ctx.save(); ctx.shadowColor=b.color===1?'#ff6eb4':'#4dff91'; ctx.shadowBlur=8;
+      ctx.save(); ctx.shadowColor=INKC[b.color]; ctx.shadowBlur=8;
       ctx.beginPath(); ctx.arc(bx,by,CELL*.28,0,Math.PI*2);
-      ctx.fillStyle=b.color===1?'#ffffaa':'#aaffff'; ctx.fill();
+      ctx.fillStyle=INKGLOW[b.color]; ctx.fill();
       ctx.beginPath(); ctx.arc(bx,by,CELL*.14,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
       ctx.restore();
     } else if(b.type==='spin'){
-      const sc=b.color===1?C1:C2;
+      const sc=INKC[b.color];
       ctx.beginPath(); ctx.arc(b.fx*CELL,b.fy*CELL,CELL*.22,0,Math.PI*2); ctx.fillStyle=sc; ctx.fill();
       ctx.beginPath(); ctx.arc(b.fx*CELL-1,b.fy*CELL-1,CELL*.09,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fill();
     } else if(b.type==='curl'){
       // カーリング: 黒枠+自分色の弾
-      const cc=b.color===1?C1:C2;
+      const cc=INKC[b.color];
       ctx.save();
       ctx.beginPath(); ctx.arc(bx,by,CELL*.44,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill();
       ctx.shadowColor=cc; ctx.shadowBlur=8;
@@ -981,7 +995,7 @@ function draw(){
       ctx.restore();
     } else {
       const r=CELL*.3;
-      const col=b.color===1?C1D:C2D;
+      const col=INKD[b.color];
       ctx.beginPath(); ctx.arc(bx,by,r,0,Math.PI*2); ctx.fillStyle=col; ctx.fill();
       ctx.beginPath(); ctx.arc(bx-1,by-1,r*.35,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.75)'; ctx.fill();
     }
@@ -990,7 +1004,7 @@ function draw(){
   // Mines
   mines.forEach(m=>{
     const mx=m.x*CELL, my=m.y*CELL;
-    const col=m.color===1?C1:C2;
+    const col=INKC[m.color];
     const pulse=.4+.6*Math.sin(Date.now()*.012+(m.x+m.y));
     ctx.save();
     ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(mx+CELL/2,my+CELL/2,CELL*.35,0,Math.PI*2); ctx.fill();
@@ -1002,11 +1016,9 @@ function draw(){
     ctx.restore();
   });
 
-  drawSensuiPreview(p1,C1); drawSensuiPreview(p2,C2);
-  drawPlayer(p1,C1B,C1D); drawPlayer(p2,C2B,C2D);
-  drawChargerAim(p1,C1); drawChargerAim(p2,C2);
-  drawTornadoRing(p1,C1); drawTornadoRing(p2,C2);
-  drawSpinnerGauge(p1,C1); drawSpinnerGauge(p2,C2);
+  players.forEach(p=>drawSensuiPreview(p,INKC[p.color]));
+  players.forEach(p=>drawPlayer(p,INKB[p.color],INKD[p.color]));
+  players.forEach(p=>{ drawChargerAim(p,INKC[p.color]); drawTornadoRing(p,INKC[p.color]); drawSpinnerGauge(p,INKC[p.color]); });
 }
 
 function drawSensuiPreview(player,col){
@@ -1174,26 +1186,17 @@ function loop(ts){
   if(!running) return;
   if(isPaused){ lt=ts; raf=requestAnimationFrame(loop); return; }
   const dt=ts-lt; lt=ts;
-  proc(p1,K1,dt);
-  if(cpuMode) procCPU(dt);
-  else        proc(p2,K2,dt);
-  tickSpinnerQueue(p1,dt);
-  tickTornado(p1,dt);
-  if(!cpuMode){ tickSpinnerQueue(p2,dt); tickTornado(p2,dt); }
-  tickInk(p1,dt); tickInk(p2,dt);
+  players.forEach(p=>{
+    if(p.human){ proc(p,p.keys,dt); tickSpinnerQueue(p,dt); tickTornado(p,dt); }
+    else p.ai.update(dt);   // CPU は自分で弾の発射や回転も進める
+  });
+  players.forEach(p=>tickInk(p,dt));
   tickSensui(dt);
   btick+=dt;
   if(btick>=BTICK_MS){ btick=0; tickBullets(); tickMines(); }
-  if(!p1.respawning&&ib(p1.x,p1.y)) paintCell(p1.x,p1.y,1);
-  if(!p2.respawning&&ib(p2.x,p2.y)) paintCell(p2.x,p2.y,2);
+  players.forEach(p=>{ if(!p.respawning&&ib(p.x,p.y)) paintCell(p.x,p.y,p.color); });
   updateScores(); updateInkUI(); draw();
   raf=requestAnimationFrame(loop);
-}
-
-// CPU専用処理（GameAIクラスへ委譲）
-function procCPU(dt){
-  if(!gameAI) gameAI=new GameAI();
-  gameAI.update(dt);
 }
 
 function proc(player,keys,dt){
