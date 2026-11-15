@@ -160,28 +160,84 @@ function drawStagePreview(cv,idx){
 // =====================================================
 // ブキの並び（最後は「ランダム」）
 const WEAPON_ITEMS = WEAPONS.map(w=>w.id).concat(['random']);
-UI.wpick = {1:0, 2:0};   // 選んでいるブキの番号
-UI.wturn = {1:0, 2:0};   // 回した合計（ぐるぐる回り続けられるよう、割り算しない値）
+UI.wpick  = {1:0, 2:0};   // 選んでいるブキの番号
+UI.wangle = {1:0, 2:0};   // リールの角度（度）。何周しても割り算しない値
+UI.wvel   = {1:0, 2:0};   // 回る速さ（度/ミリ秒）。慣性で少しずつ遅くなる
 function itemName(id){ return id==='random' ? 'ランダム' : WNAME[id]; }
 function itemIcon(id){ return id==='random' ? '?' : WICON[id]; }
 function itemDesc(id){ return id==='random' ? '12種類からおまかせ' : WEAPONS.find(w=>w.id===id).desc; }
-function stepWeapon(pn,d){
-  const n = WEAPON_ITEMS.length;
-  UI.wturn[pn] += d;
-  UI.wpick[pn] = ((UI.wturn[pn]%n)+n)%n;
-  updateReel(pn);
-}
+
 // 3D のリール：カードを円柱のまわりに並べ、円柱ごと回す
 const REEL_R = 470;
-const WHEEL_STEP = 100;        // ホイールをこれだけ動かしたら1枚回る
-const WHEEL_COOLDOWN_MS = 280; // 1枚回ったあと、次に回れるまでの時間
+const STEP_DEG = 360 / WEAPON_ITEMS.length; // カード1枚ぶんの角度
+// 慣性（スライドすると、最初は速く、だんだん遅くなって止まる）
+const WHEEL_GAIN = 0.0012;   // ホイール 1px あたりに足す速さ
+const DRAG_DEG_PER_PX = STEP_DEG / 220; // ドラッグ 220px でカード1枚
+const MAX_VEL  = 1.1;        // いちばん速いとき（度/ミリ秒）
+const FRICTION = 0.93;       // 1フレームごとに速さに掛ける値（小さいほど早く止まる）
+const STOP_VEL = 0.02;       // これより遅くなったら、近いカードにピタッと止める
+
+function stepWeapon(pn,d){
+  UI.wvel[pn] = 0;
+  UI.wangle[pn] = (Math.round(UI.wangle[pn]/STEP_DEG)+d)*STEP_DEG;
+  setDrum(pn, true);
+}
+function reelRow(pn){ return $('weaponCols').querySelector(`.wslot-row[data-pn="${pn}"]`); }
+// リールの角度を画面に反映。animate=true なら CSS のイージングで動かす
+function setDrum(pn, animate){
+  const row = reelRow(pn); if(!row) return;
+  const drum = row.querySelector('.wdrum');
+  drum.style.transition = animate ? '' : 'none';
+  drum.style.transform = `translateZ(-${REEL_R}px) rotateY(${-UI.wangle[pn]}deg)`;
+  highlightReel(pn);
+}
+// いちばん手前のカードを「選択中」にする（回っている途中でも切り替わる）
+function highlightReel(pn, force){
+  const n = WEAPON_ITEMS.length;
+  const idx = ((Math.round(UI.wangle[pn]/STEP_DEG)%n)+n)%n;
+  if(idx===UI.wpick[pn] && !force) return;
+  UI.wpick[pn] = idx;
+  const row = reelRow(pn); if(!row) return;
+  row.querySelectorAll('.wcard').forEach(c=>{
+    const on = +c.dataset.i===idx;
+    c.classList.toggle('center', on);
+    c.style.transform = `rotateY(${c.dataset.i*STEP_DEG}deg) translateZ(${REEL_R+(on?40:0)}px)`+(on?' scale(1.08)':'');
+  });
+  const local = UI.setup.kind==='local';
+  $('weaponSummary').textContent = `${local?'P1':'あなた'}：${itemName(WEAPON_ITEMS[UI.wpick[1]])} ／ ${local?'P2':'CPU'}：${itemName(WEAPON_ITEMS[UI.wpick[2]])}`;
+}
+// 慣性で回すループ
+let reelRaf = 0, reelLast = 0;
+function kickReel(pn, addVel){
+  UI.wvel[pn] = Math.max(-MAX_VEL, Math.min(MAX_VEL, UI.wvel[pn] + addVel));
+  if(!reelRaf){ reelLast = performance.now(); reelRaf = requestAnimationFrame(reelTick); }
+}
+function reelTick(now){
+  const dt = Math.min(50, now - reelLast); reelLast = now;
+  let moving = false;
+  [1,2].forEach(pn=>{
+    const v = UI.wvel[pn];
+    if(!v) return;
+    UI.wangle[pn] += v*dt;
+    UI.wvel[pn] = v*Math.pow(FRICTION, dt/16.67);
+    if(Math.abs(UI.wvel[pn]) < STOP_VEL){
+      UI.wvel[pn] = 0;
+      UI.wangle[pn] = Math.round(UI.wangle[pn]/STEP_DEG)*STEP_DEG;
+      setDrum(pn, true);
+    } else {
+      setDrum(pn, false);
+      moving = true;
+    }
+  });
+  reelRaf = moving ? requestAnimationFrame(reelTick) : 0;
+}
+
 function renderWeapons(){
   const local = UI.setup.kind==='local';
   const box = $('weaponCols'); box.innerHTML='';
-  const n = WEAPON_ITEMS.length;
   [
-    {pn:1, label: local?'P1':'あなた', keys:'<kbd>A</kbd><kbd>D</kbd> かホイール'},
-    {pn:2, label: local?'P2':'CPU',    keys:'<kbd>←</kbd><kbd>→</kbd> かホイール'},
+    {pn:1, label: local?'P1':'あなた', keys:'<kbd>A</kbd><kbd>D</kbd> かスライド'},
+    {pn:2, label: local?'P2':'CPU',    keys:'<kbd>←</kbd><kbd>→</kbd> かスライド'},
   ].forEach(p=>{
     const row = document.createElement('div');
     row.className = `wslot-row c${p.pn}`; row.dataset.pn = p.pn;
@@ -192,50 +248,62 @@ function renderWeapons(){
     const [prev,next] = row.querySelectorAll('.wslot-arrow');
     prev.addEventListener('click',()=>stepWeapon(p.pn,-1));
     next.addEventListener('click',()=>stepWeapon(p.pn,1));
+    const reel = row.querySelector('.wreel');
     const drum = row.querySelector('.wdrum');
+    let dragged = false;
     WEAPON_ITEMS.forEach((id,i)=>{
       const card = document.createElement('button');
       card.type='button'; card.className='wcard'; card.dataset.i=i;
-      card.style.transform = `rotateY(${i*360/n}deg) translateZ(${REEL_R}px)`;
+      card.style.transform = `rotateY(${i*STEP_DEG}deg) translateZ(${REEL_R}px)`;
       card.innerHTML = `<span class="wi">${itemIcon(id)}</span><span class="wn">${itemName(id)}</span><span class="wd">${itemDesc(id)}</span>`;
       card.setAttribute('aria-label', itemName(id));
       card.addEventListener('click',()=>{
-        // いちばん近い向きに回す
+        if(dragged) return; // ドラッグのあとのクリックは無視
+        const n = WEAPON_ITEMS.length;
         let d = (i - UI.wpick[p.pn] + n) % n; if(d > n/2) d -= n;
         if(d) stepWeapon(p.pn, d);
       });
       drum.appendChild(card);
     });
-    // マウスホイールでも回す。動かした量をためて、一定量ごとに1枚だけ回す（回りすぎ防止）
-    let wheelSum = 0, wheelLock = 0;
-    row.querySelector('.wreel').addEventListener('wheel',e=>{
+    // ホイール・トラックパッドのスライド：動かした量だけ勢いを足す
+    reel.addEventListener('wheel',e=>{
       e.preventDefault();
-      const now = performance.now();
-      if(now - wheelLock < WHEEL_COOLDOWN_MS){ wheelSum = 0; return; }
-      wheelSum += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if(Math.abs(wheelSum) < WHEEL_STEP){ return; }
-      stepWeapon(p.pn, wheelSum > 0 ? 1 : -1);
-      wheelSum = 0; wheelLock = now;
+      let d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if(e.deltaMode===1) d *= 33;
+      kickReel(p.pn, d*WHEEL_GAIN);
     },{passive:false});
+    // マウスでつかんで横にドラッグ：離したときの速さで回り続ける
+    let dragX = null, lastX = 0, lastT = 0, dragVel = 0;
+    reel.addEventListener('pointerdown',e=>{
+      dragX = e.clientX; lastX = e.clientX; lastT = performance.now(); dragVel = 0; dragged = false;
+      UI.wvel[p.pn] = 0;
+      reel.setPointerCapture(e.pointerId);
+    });
+    reel.addEventListener('pointermove',e=>{
+      if(dragX===null) return;
+      const now = performance.now(), dx = e.clientX - lastX;
+      if(Math.abs(e.clientX - dragX) > 6) dragged = true;
+      UI.wangle[p.pn] -= dx*DRAG_DEG_PER_PX;
+      if(now > lastT) dragVel = (-dx*DRAG_DEG_PER_PX)/(now - lastT);
+      lastX = e.clientX; lastT = now;
+      setDrum(p.pn, false);
+    });
+    const endDrag = ()=>{
+      if(dragX===null) return;
+      dragX = null;
+      if(performance.now() - lastT > 80) dragVel = 0; // 止めてから離したら勢いなし
+      if(dragged) kickReel(p.pn, dragVel);
+      if(!dragged || !UI.wvel[p.pn]){ UI.wangle[p.pn] = Math.round(UI.wangle[p.pn]/STEP_DEG)*STEP_DEG; setDrum(p.pn, true); }
+      setTimeout(()=>{ dragged = false; }, 0);
+    };
+    reel.addEventListener('pointerup',endDrag);
+    reel.addEventListener('pointercancel',endDrag);
     box.appendChild(row);
-    updateReel(p.pn, true);
+    UI.wangle[p.pn] = UI.wpick[p.pn]*STEP_DEG;
+    UI.wvel[p.pn] = 0;
+    setDrum(p.pn, false);
+    highlightReel(p.pn, true);
   });
-}
-function updateReel(pn, instant){
-  const local = UI.setup.kind==='local';
-  const n = WEAPON_ITEMS.length;
-  const row = $('weaponCols').querySelector(`.wslot-row[data-pn="${pn}"]`); if(!row) return;
-  const drum = row.querySelector('.wdrum');
-  if(instant){ drum.style.transition='none'; void drum.offsetWidth; }
-  drum.style.transform = `translateZ(-${REEL_R}px) rotateY(${-UI.wturn[pn]*360/n}deg)`;
-  if(instant) requestAnimationFrame(()=>{ drum.style.transition=''; });
-  row.querySelectorAll('.wcard').forEach(c=>{
-    const on = +c.dataset.i===UI.wpick[pn];
-    c.classList.toggle('center', on);
-    // 選んだカードだけ手前に飛び出させる
-    c.style.transform = `rotateY(${c.dataset.i*360/n}deg) translateZ(${REEL_R+(on?40:0)}px)`+(on?' scale(1.08)':'');
-  });
-  $('weaponSummary').textContent = `${local?'P1':'あなた'}：${itemName(WEAPON_ITEMS[UI.wpick[1]])} ／ ${local?'P2':'CPU'}：${itemName(WEAPON_ITEMS[UI.wpick[2]])}`;
 }
 // スタート時に選択を確定（ランダムはここで決める）
 function applyWeaponPicks(){
