@@ -569,10 +569,12 @@ function endGame(){
   const who = title.querySelector('.who'); if(who) who.textContent = s1>s2?n1:n2;
 
   const total = totalPaintable||1;
+  // バーは2人の塗った量の合計を100%として分ける（塗られていない所は出さない）
+  const sum = (s1+s2)||1;
+  const r1 = s1+s2 ? s1/sum*100 : 50;
   $('resultBar').innerHTML =
-    `<div style="width:${s1/total*100}%;background:var(--p1);"></div>`+
-    `<div style="flex-grow:1;"></div>`+
-    `<div style="width:${s2/total*100}%;background:var(--p2);border-left:3px solid #111;"></div>`;
+    `<div style="width:${r1}%;background:var(--p1);"></div>`+
+    `<div style="flex-grow:1;background:var(--p2);border-left:3px solid #111;"></div>`;
   $('resultScores').innerHTML = [
     {n:n1,c:'var(--p1)',p:pct1,w:w1,win:s1>s2},
     {n:n2,c:'var(--p2)',p:pct2,w:w2,win:s2>s1},
