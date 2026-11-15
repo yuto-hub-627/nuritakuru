@@ -176,18 +176,23 @@ const DRAG_DEG_PER_PX = STEP_DEG / 220; // ドラッグ 220px でカード1枚
 const MAX_VEL  = 1.1;        // いちばん速いとき（度/ミリ秒）
 const FRICTION = 0.93;       // 1フレームごとに速さに掛ける値（小さいほど早く止まる）
 const STOP_VEL = 0.02;       // これより遅くなったら、近いカードにピタッと止める
+// 止まり方：小さく動いたときはそのまま止める。大きく回ったときだけ少し行きすぎて戻る（オーバーシュート）
+const EASE_PLAIN  = 'transform .7s cubic-bezier(.12,.8,.25,1)';
+const EASE_BOUNCE = 'transform .8s cubic-bezier(.18,.9,.28,1.22)';
+const BIG_MOVE_CARDS = 3;    // これ以上の枚数を動いたら「大きい動き」
+UI.wtravel = {1:0, 2:0};     // 今回の回転で動いた角度
 
 function stepWeapon(pn,d){
   UI.wvel[pn] = 0;
   UI.wangle[pn] = (Math.round(UI.wangle[pn]/STEP_DEG)+d)*STEP_DEG;
-  setDrum(pn, true);
+  setDrum(pn, Math.abs(d)>=BIG_MOVE_CARDS ? 'bounce' : 'plain');
 }
 function reelRow(pn){ return $('weaponCols').querySelector(`.wslot-row[data-pn="${pn}"]`); }
-// リールの角度を画面に反映。animate=true なら CSS のイージングで動かす
-function setDrum(pn, animate){
+// リールの角度を画面に反映。mode：false=すぐ反映／'plain'=なめらかに止まる／'bounce'=少し行きすぎて戻る
+function setDrum(pn, mode){
   const row = reelRow(pn); if(!row) return;
   const drum = row.querySelector('.wdrum');
-  drum.style.transition = animate ? '' : 'none';
+  drum.style.transition = mode==='bounce' ? EASE_BOUNCE : mode ? EASE_PLAIN : 'none';
   drum.style.transform = `translateZ(-${REEL_R}px) rotateY(${-UI.wangle[pn]}deg)`;
   highlightReel(pn);
 }
@@ -209,6 +214,7 @@ function highlightReel(pn, force){
 // 慣性で回すループ
 let reelRaf = 0, reelLast = 0;
 function kickReel(pn, addVel){
+  if(!UI.wvel[pn]) UI.wtravel[pn] = 0;
   UI.wvel[pn] = Math.max(-MAX_VEL, Math.min(MAX_VEL, UI.wvel[pn] + addVel));
   if(!reelRaf){ reelLast = performance.now(); reelRaf = requestAnimationFrame(reelTick); }
 }
@@ -219,11 +225,14 @@ function reelTick(now){
     const v = UI.wvel[pn];
     if(!v) return;
     UI.wangle[pn] += v*dt;
+    UI.wtravel[pn] += Math.abs(v*dt);
     UI.wvel[pn] = v*Math.pow(FRICTION, dt/16.67);
     if(Math.abs(UI.wvel[pn]) < STOP_VEL){
       UI.wvel[pn] = 0;
-      UI.wangle[pn] = Math.round(UI.wangle[pn]/STEP_DEG)*STEP_DEG;
-      setDrum(pn, true);
+      // 回っていた向きの先のカードで止める（逆戻りしないように）
+      const pos = UI.wangle[pn]/STEP_DEG;
+      UI.wangle[pn] = (v>0 ? Math.ceil(pos-.35) : Math.floor(pos+.35))*STEP_DEG;
+      setDrum(pn, UI.wtravel[pn] >= BIG_MOVE_CARDS*STEP_DEG ? 'bounce' : 'plain');
     } else {
       setDrum(pn, false);
       moving = true;
@@ -293,7 +302,7 @@ function renderWeapons(){
       dragX = null;
       if(performance.now() - lastT > 80) dragVel = 0; // 止めてから離したら勢いなし
       if(dragged) kickReel(p.pn, dragVel);
-      if(!dragged || !UI.wvel[p.pn]){ UI.wangle[p.pn] = Math.round(UI.wangle[p.pn]/STEP_DEG)*STEP_DEG; setDrum(p.pn, true); }
+      if(!dragged || !UI.wvel[p.pn]){ UI.wangle[p.pn] = Math.round(UI.wangle[p.pn]/STEP_DEG)*STEP_DEG; setDrum(p.pn, 'plain'); }
       setTimeout(()=>{ dragged = false; }, 0);
     };
     reel.addEventListener('pointerup',endDrag);
